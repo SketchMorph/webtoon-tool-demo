@@ -1,0 +1,1062 @@
+<!DOCTYPE html>
+<html lang="ko">
+  <head>
+    <meta charset="UTF-8" />
+    <title>개인 스케치 스타일 학습 툴 (3D 스틱맨 + 포즈 + 비율)</title>
+    <style>
+      body {
+        margin: 0;
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+          sans-serif;
+        background: #111;
+        color: #eee;
+        display: flex;
+        flex-direction: column;
+        min-height: 100vh;
+      }
+      header {
+        padding: 12px 20px;
+        border-bottom: 1px solid #333;
+        background: #181818;
+      }
+      header h1 {
+        margin: 0;
+        font-size: 18px;
+      }
+      header p {
+        margin: 4px 0 0;
+        font-size: 12px;
+        color: #aaa;
+      }
+      main {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        padding: 10px 16px 8px;
+        gap: 10px;
+        box-sizing: border-box;
+      }
+      .top-row {
+        display: flex;
+        gap: 12px;
+        flex: 1;
+        min-height: 0;
+      }
+      .panel {
+        background: #181818;
+        border-radius: 12px;
+        padding: 10px;
+        box-sizing: border-box;
+      }
+      .sketch-panel {
+        flex: 1.4;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+      }
+      .three-panel {
+        flex: 1.1;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+      }
+      .controls-group {
+        margin-bottom: 6px;
+      }
+      label {
+        font-size: 12px;
+        color: #ccc;
+        display: block;
+        margin-bottom: 3px;
+      }
+      input[type="text"],
+      input[type="number"],
+      input[type="file"],
+      select {
+        width: 100%;
+        box-sizing: border-box;
+        padding: 6px 8px;
+        border-radius: 6px;
+        border: 1px solid #444;
+        background: #101010;
+        color: #eee;
+        font-size: 12px;
+      }
+      .row {
+        display: flex;
+        gap: 8px;
+      }
+      .row > div {
+        flex: 1;
+      }
+      .hint {
+        font-size: 11px;
+        color: #999;
+      }
+      .chip {
+        display: inline-flex;
+        align-items: center;
+        padding: 3px 8px;
+        border-radius: 999px;
+        border: 1px solid #444;
+        font-size: 10px;
+        color: #bbb;
+        margin-right: 4px;
+        margin-top: 2px;
+      }
+      .button-row {
+        display: flex;
+        gap: 8px;
+        margin-top: 6px;
+        flex-wrap: wrap;
+      }
+      button {
+        padding: 6px 12px;
+        border-radius: 999px;
+        border: none;
+        font-size: 12px;
+        cursor: pointer;
+        background: #2e7dfb;
+        color: white;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+      }
+      button.secondary {
+        background: #333;
+        color: #eee;
+      }
+      button:disabled {
+        opacity: 0.5;
+        cursor: default;
+      }
+      /* 스케치 캔버스 */
+      .canvas-wrapper {
+        position: relative;
+        flex: 1;
+        border-radius: 10px;
+        border: 1px solid #333;
+        background: #000;
+        display: inline-block;
+        margin-top: 6px;
+        min-height: 300px;
+        overflow: hidden;
+      }
+      canvas {
+        background: #000;
+        touch-action: none;
+        max-width: 100%;
+        height: auto;
+        display: block;
+      }
+      #bgCanvas,
+      #ratioCanvas,
+      #drawCanvas {
+        position: absolute;
+        left: 0;
+        top: 0;
+      }
+      #ratioCanvas {
+        pointer-events: none;
+      }
+      /* 3D 뷰어 */
+      .three-wrapper {
+        border-radius: 10px;
+        border: 1px solid #333;
+        background: #020218;
+        width: 100%;
+        height: 300px;
+        position: relative;
+        overflow: hidden;
+        margin-top: 6px;
+      }
+      #modelCanvas {
+        width: 100%;
+        height: 100%;
+        display: block;
+        cursor: grab;
+      }
+      .status {
+        font-size: 11px;
+        color: #aaa;
+        margin-top: 4px;
+      }
+      /* 메타 패널 */
+      .meta-container {
+        background: #181818;
+        border-radius: 10px;
+        border: 1px solid #333;
+        padding: 0;
+        overflow: hidden;
+      }
+      .meta-header {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 8px 12px;
+        cursor: pointer;
+      }
+      .meta-header-title {
+        font-size: 13px;
+        display: flex;
+        align-items: center;
+        gap: 6px;
+      }
+      .meta-chevron {
+        font-size: 14px;
+        transition: transform 0.2s ease;
+      }
+      .meta-container.collapsed .meta-chevron {
+        transform: rotate(-90deg);
+      }
+      .meta-body {
+        padding: 8px 12px 10px;
+        border-top: 1px solid #333;
+        display: block;
+      }
+      .meta-container.collapsed .meta-body {
+        display: none;
+      }
+      footer {
+        padding: 6px 16px;
+        font-size: 11px;
+        color: #777;
+        border-top: 1px solid #333;
+        background: #141414;
+      }
+    </style>
+  </head>
+  <body>
+    <header>
+      <h1>개인 스케치 스타일 학습 툴 (3D 스틱맨 + 포즈 + 비율)</h1>
+      <p>
+        오른쪽 3D 스틱맨 포즈를 잡고, 스냅샷을 왼쪽 Guide로 보낸 뒤 위에 네
+        스타일로 선을 그립니다. 저장 시 PNG + meta.json으로 포즈/카메라까지
+        기록됩니다.
+      </p>
+    </header>
+
+    <main>
+      <div class="top-row">
+        <!-- 왼쪽: 스케치 -->
+        <section class="panel sketch-panel">
+          <div class="controls-group">
+            <label for="guideInput">외부 Guide 이미지 선택 (선택 사항)</label>
+            <input type="file" id="guideInput" accept="image/*" />
+            <div class="hint">
+              - PNG/JPG 권장<br />
+              - 이미지 전체를 비율 유지하며 축소만 하고 잘리지 않습니다.
+            </div>
+          </div>
+
+          <div class="controls-group">
+            <span class="chip">좌클릭 / 펜 드래그: 스케치</span>
+            <span class="chip">모바일/타블렛 펜 지원</span>
+          </div>
+
+          <div class="canvas-wrapper" id="canvasWrapper">
+            <canvas id="bgCanvas"></canvas>
+            <canvas id="ratioCanvas"></canvas>
+            <canvas id="drawCanvas"></canvas>
+          </div>
+
+          <div class="button-row">
+            <button class="secondary" id="clearSketchBtn">스케치 지우기</button>
+            <button class="secondary" id="resetGuideBtn">Guide 지우기</button>
+          </div>
+
+          <div class="status" id="statusText">
+            오른쪽에서 포즈를 잡고 "3D 스냅샷 → Guide" 버튼을 눌러보세요.
+          </div>
+        </section>
+
+        <!-- 오른쪽: 3D 스틱맨 + 옵션 -->
+        <section class="panel three-panel">
+          <div class="controls-group">
+            <label>3D 스틱맨 뷰어 (소프트웨어 렌더링)</label>
+            <div class="three-wrapper">
+              <canvas id="modelCanvas"></canvas>
+            </div>
+          </div>
+
+          <div class="controls-group">
+            <label>포즈 컨트롤</label>
+            <div class="row">
+              <div>
+                <label for="armRaiseSlider"
+                  >팔 들어올리기 (도):
+                  <span id="armRaiseLabel">0</span>°</label
+                >
+                <input
+                  type="range"
+                  id="armRaiseSlider"
+                  min="-40"
+                  max="80"
+                  value="0"
+                />
+              </div>
+            </div>
+            <div class="row" style="margin-top: 4px">
+              <div>
+                <label for="legSpreadSlider"
+                  >다리 벌리기 (단위):
+                  <span id="legSpreadLabel">0.00</span></label
+                >
+                <input
+                  type="range"
+                  id="legSpreadSlider"
+                  min="0"
+                  max="40"
+                  value="0"
+                />
+              </div>
+            </div>
+            <div class="row" style="margin-top: 4px">
+              <div>
+                <label for="heightScaleSlider"
+                  >키/등신 스케일 (%):
+                  <span id="heightScaleLabel">100</span>%</label
+                >
+                <input
+                  type="range"
+                  id="heightScaleSlider"
+                  min="70"
+                  max="130"
+                  value="100"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div class="controls-group">
+            <label for="canvasSizeSelect">캔버스 크기 (3D 스냅샷용)</label>
+            <select id="canvasSizeSelect">
+              <option value="512">512 x 512</option>
+              <option value="768" selected>768 x 768</option>
+              <option value="1024">1024 x 1024</option>
+            </select>
+            <div class="hint">
+              - 3D 스냅샷을 Guide로 보낼 때 사용할 기본 캔버스 크기입니다.
+            </div>
+          </div>
+
+          <div class="button-row">
+            <button id="snapFrom3DBtn">3D 스냅샷 → Guide</button>
+            <button class="secondary" id="reset3DBtn">3D 회전/포즈 리셋</button>
+          </div>
+
+          <div class="hint" style="margin-top: 4px">
+            - 마우스 드래그: 회전 (좌우/상하)<br />
+            - 휠: 줌 인/아웃<br />
+            - 슬라이더: 팔 각도 / 다리 벌림 / 전체 키 비율 조정
+          </div>
+        </section>
+      </div>
+
+      <!-- 하단 메타 패널 -->
+      <section class="meta-container" id="metaContainer">
+        <div class="meta-header" id="metaHeader">
+          <div class="meta-header-title">
+            <span class="meta-chevron">▼</span>
+            <span>메타 정보 & 샘플 저장</span>
+          </div>
+          <span style="font-size: 11px; color: #888"
+            >필요할 때만 펼쳐서 사용하세요.</span
+          >
+        </div>
+        <div class="meta-body">
+          <div class="controls-group">
+            <div class="row">
+              <div>
+                <label for="sampleIdInput">Sample ID</label>
+                <input
+                  type="text"
+                  id="sampleIdInput"
+                  placeholder="예: EP01-CUT017-A"
+                />
+              </div>
+              <div>
+                <label for="charCodeInput">Character Code</label>
+                <input
+                  type="text"
+                  id="charCodeInput"
+                  placeholder="예: CHAR-JH-01-A"
+                />
+              </div>
+            </div>
+          </div>
+
+          <div class="controls-group row">
+            <div>
+              <label for="headCountInput">전체 등신 수 (캔버스 기준)</label>
+              <input
+                type="number"
+                id="headCountInput"
+                min="4"
+                max="10"
+                step="0.5"
+                value="7.5"
+              />
+            </div>
+            <div>
+              <label for="bodyHeightPxOutput">현재 캔버스 높이(px)</label>
+              <input
+                type="number"
+                id="bodyHeightPxOutput"
+                readonly
+                placeholder="Guide 로드 후 표시"
+              />
+            </div>
+          </div>
+
+          <div class="controls-group">
+            <button id="saveSampleBtn">샘플 저장 (PNG + meta.json)</button>
+            <div class="hint">
+              - drawCanvas만 PNG로 저장합니다.<br />
+              - meta.json에 Guide 타입(3D/외부), 등신/포즈/카메라 정보가 함께
+              기록됩니다.<br />
+              - 나중에 이 값을 읽어서 “같은 포즈 다시 불러오기 / 저장된 선화
+              재사용” 로직으로 연결할 수 있어요.
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <footer>이 HTML 파일 하나로 동작하는 순수 로컬 툴입니다.</footer>
+
+    <script>
+      /* ========= 스케치 캔버스 ========= */
+      const bgCanvas = document.getElementById("bgCanvas");
+      const drawCanvas = document.getElementById("drawCanvas");
+      const ratioCanvas = document.getElementById("ratioCanvas");
+      const bgCtx = bgCanvas.getContext("2d");
+      const drawCtx = drawCanvas.getContext("2d");
+      const ratioCtx = ratioCanvas.getContext("2d");
+
+      const guideInput = document.getElementById("guideInput");
+      const clearSketchBtn = document.getElementById("clearSketchBtn");
+      const resetGuideBtn = document.getElementById("resetGuideBtn");
+      const statusText = document.getElementById("statusText");
+      const headCountInput = document.getElementById("headCountInput");
+      const bodyHeightPxOutput = document.getElementById("bodyHeightPxOutput");
+      const canvasSizeSelect = document.getElementById("canvasSizeSelect");
+
+      let guideFileName = null;
+      let guideFrom3D = false;
+
+      let isDrawing = false;
+      let lastX = 0;
+      let lastY = 0;
+      const brushSize = 3;
+      const brushOpacity = 1;
+
+      function resizeAllCanvases(width, height) {
+        bgCanvas.width = width;
+        bgCanvas.height = height;
+        drawCanvas.width = width;
+        drawCanvas.height = height;
+        ratioCanvas.width = width;
+        ratioCanvas.height = height;
+
+        const wrapper = document.getElementById("canvasWrapper");
+        wrapper.style.width = width + "px";
+
+        drawCtx.lineJoin = "round";
+        drawCtx.lineCap = "round";
+        updateBodyHeightOutput();
+      }
+
+      function updateBodyHeightOutput() {
+        bodyHeightPxOutput.value = drawCanvas.height || "";
+      }
+
+      function initCanvases() {
+        const size = parseInt(canvasSizeSelect.value, 10) || 768;
+        resizeAllCanvases(size, size);
+        bgCtx.fillStyle = "#000";
+        bgCtx.fillRect(0, 0, size, size);
+        drawCtx.clearRect(0, 0, size, size);
+        ratioCtx.clearRect(0, 0, size, size);
+        drawProportionOverlay();
+      }
+
+      initCanvases();
+
+      /* ---- 외부 Guide ---- */
+      guideInput.addEventListener("change", (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+        guideFileName = file.name;
+        guideFrom3D = false;
+
+        const reader = new FileReader();
+        reader.onload = (event) => {
+          const img = new Image();
+          img.onload = () => {
+            const maxSize = 1024;
+            let w = img.width;
+            let h = img.height;
+            const ratio = Math.min(maxSize / w, maxSize / h, 1);
+            w = Math.floor(w * ratio);
+            h = Math.floor(h * ratio);
+
+            resizeAllCanvases(w, h);
+            bgCtx.fillStyle = "#000";
+            bgCtx.fillRect(0, 0, w, h);
+            bgCtx.drawImage(img, 0, 0, w, h);
+
+            drawCtx.clearRect(0, 0, w, h);
+            ratioCtx.clearRect(0, 0, w, h);
+            drawProportionOverlay();
+
+            statusText.textContent =
+              "외부 Guide가 설정되었습니다. 위에 스케치를 그리세요.";
+          };
+          img.src = event.target.result;
+        };
+        reader.readAsDataURL(file);
+      });
+
+      /* ---- 스케치 드로잉 ---- */
+      function getCanvasPos(evt, canvas) {
+        const rect = canvas.getBoundingClientRect();
+        let clientX, clientY;
+        if (evt.touches && evt.touches.length > 0) {
+          clientX = evt.touches[0].clientX;
+          clientY = evt.touches[0].clientY;
+        } else {
+          clientX = evt.clientX;
+          clientY = evt.clientY;
+        }
+        const x = ((clientX - rect.left) / rect.width) * canvas.width;
+        const y = ((clientY - rect.top) / rect.height) * canvas.height;
+        return { x, y };
+      }
+
+      function startDrawing(evt) {
+        evt.preventDefault();
+        const pos = getCanvasPos(evt, drawCanvas);
+        isDrawing = true;
+        lastX = pos.x;
+        lastY = pos.y;
+      }
+
+      function drawMove(evt) {
+        if (!isDrawing) return;
+        evt.preventDefault();
+        const pos = getCanvasPos(evt, drawCanvas);
+
+        drawCtx.strokeStyle = "rgba(255,255,255," + brushOpacity + ")";
+        drawCtx.lineWidth = brushSize;
+
+        drawCtx.beginPath();
+        drawCtx.moveTo(lastX, lastY);
+        drawCtx.lineTo(pos.x, pos.y);
+        drawCtx.stroke();
+
+        lastX = pos.x;
+        lastY = pos.y;
+      }
+
+      function stopDrawing(evt) {
+        if (!isDrawing) return;
+        evt && evt.preventDefault();
+        isDrawing = false;
+      }
+
+      drawCanvas.addEventListener("mousedown", startDrawing);
+      drawCanvas.addEventListener("mousemove", drawMove);
+      drawCanvas.addEventListener("mouseup", stopDrawing);
+      drawCanvas.addEventListener("mouseleave", stopDrawing);
+      drawCanvas.addEventListener("touchstart", startDrawing, {
+        passive: false,
+      });
+      drawCanvas.addEventListener("touchmove", drawMove, { passive: false });
+      drawCanvas.addEventListener("touchend", stopDrawing, { passive: false });
+      drawCanvas.addEventListener("touchcancel", stopDrawing, {
+        passive: false,
+      });
+
+      clearSketchBtn.addEventListener("click", () => {
+        drawCtx.clearRect(0, 0, drawCanvas.width, drawCanvas.height);
+        statusText.textContent = "스케치를 초기화했습니다.";
+      });
+
+      resetGuideBtn.addEventListener("click", () => {
+        guideFileName = null;
+        guideFrom3D = false;
+        guideInput.value = "";
+        initCanvases();
+        statusText.textContent =
+          "Guide를 지웠습니다. 3D 스냅샷을 보내거나 새 이미지를 불러올 수 있어요.";
+      });
+
+      /* ---- 등신 라인 ---- */
+      function drawProportionOverlay() {
+        const headCount = parseFloat(headCountInput.value) || 0;
+        const h = ratioCanvas.height;
+        const w = ratioCanvas.width;
+        ratioCtx.clearRect(0, 0, w, h);
+        if (!headCount || h === 0) return;
+
+        const headHeight = h / headCount;
+        ratioCtx.strokeStyle = "rgba(0, 255, 255, 0.5)";
+        ratioCtx.lineWidth = 1;
+
+        for (let i = 0; i <= headCount; i++) {
+          const y = Math.round(i * headHeight) + 0.5;
+          ratioCtx.beginPath();
+          ratioCtx.moveTo(0, y);
+          ratioCtx.lineTo(w, y);
+          ratioCtx.stroke();
+        }
+      }
+      headCountInput.addEventListener("change", drawProportionOverlay);
+
+      /* ========= 메타/저장 ========= */
+      const saveSampleBtn = document.getElementById("saveSampleBtn");
+      const sampleIdInput = document.getElementById("sampleIdInput");
+      const charCodeInput = document.getElementById("charCodeInput");
+
+      function downloadBlob(filename, blob) {
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = filename;
+        document.body.appendChild(a);
+        a.click();
+        a.remove();
+        URL.revokeObjectURL(url);
+      }
+
+      saveSampleBtn.addEventListener("click", () => {
+        const sampleId = (sampleIdInput.value || "").trim();
+        const charCode = (charCodeInput.value || "").trim();
+        if (!sampleId) {
+          alert("Sample ID를 입력해주세요.");
+          return;
+        }
+        if (!charCode) {
+          alert("Character Code를 입력해주세요.");
+          return;
+        }
+
+        const headCount = parseFloat(headCountInput.value) || 0;
+        const canvasHeight = drawCanvas.height;
+        const headHeightPx =
+          headCount && canvasHeight ? canvasHeight / headCount : null;
+
+        drawCanvas.toBlob(
+          (blob) => {
+            if (!blob) {
+              alert("스케치 PNG를 생성하지 못했습니다.");
+              return;
+            }
+            const sketchFileName = sampleId + "_sketch.png";
+            downloadBlob(sketchFileName, blob);
+
+            const armDeg = parseInt(
+              document.getElementById("armRaiseSlider").value,
+              10
+            );
+            const legVal = parseInt(
+              document.getElementById("legSpreadSlider").value,
+              10
+            );
+            const heightVal = parseInt(
+              document.getElementById("heightScaleSlider").value,
+              10
+            );
+
+            const meta = {
+              sample_id: sampleId,
+              character_code: charCode,
+              guide_file_name: guideFileName,
+              guide_from_3d: guideFrom3D,
+              canvas_width: drawCanvas.width,
+              canvas_height: drawCanvas.height,
+              created_at: new Date().toISOString(),
+              body_ratio: {
+                head_count: headCount || null,
+                head_height_px: headHeightPx,
+                canvas_height_px: canvasHeight,
+              },
+              pose: {
+                camera: {
+                  yaw_rad: yaw,
+                  pitch_rad: pitch,
+                  distance: distance,
+                },
+                sliders: {
+                  arm_raise_deg: armDeg,
+                  leg_spread_unit: legSpreadUnit,
+                  height_scale: heightVal / 100,
+                },
+              },
+            };
+
+            const metaBlob = new Blob([JSON.stringify(meta, null, 2)], {
+              type: "application/json",
+            });
+            const metaFileName = sampleId + "_meta.json";
+            downloadBlob(metaFileName, metaBlob);
+
+            statusText.textContent =
+              "샘플이 저장되었습니다: " +
+              sketchFileName +
+              " + " +
+              metaFileName;
+          },
+          "image/png",
+          1.0
+        );
+      });
+
+      /* ---- 메타 패널 접기 ---- */
+      const metaContainer = document.getElementById("metaContainer");
+      const metaHeader = document.getElementById("metaHeader");
+      metaHeader.addEventListener("click", () => {
+        metaContainer.classList.toggle("collapsed");
+      });
+
+      /* ========= 3D 스틱맨 ========= */
+      const modelCanvas = document.getElementById("modelCanvas");
+      const modelCtx = modelCanvas.getContext("2d");
+
+      function resizeModelCanvas() {
+        const rect = modelCanvas.getBoundingClientRect();
+        modelCanvas.width = rect.width || 400;
+        modelCanvas.height = rect.height || 300;
+      }
+      resizeModelCanvas();
+      window.addEventListener("resize", () => {
+        resizeModelCanvas();
+      });
+
+      const basePoints = [
+        { name: "head", x: 0, y: 3.5, z: 0 },
+        { name: "neck", x: 0, y: 3.0, z: 0 },
+        { name: "chest", x: 0, y: 2.4, z: 0 },
+        { name: "pelvis", x: 0, y: 1.6, z: 0 },
+        { name: "l_shoulder", x: -0.8, y: 2.8, z: 0 },
+        { name: "r_shoulder", x: 0.8, y: 2.8, z: 0 },
+        { name: "l_elbow", x: -1.2, y: 2.0, z: 0.1 },
+        { name: "r_elbow", x: 1.2, y: 2.0, z: -0.1 },
+        { name: "l_hand", x: -1.3, y: 1.2, z: 0.2 },
+        { name: "r_hand", x: 1.3, y: 1.2, z: -0.2 },
+        { name: "l_knee", x: -0.5, y: 0.7, z: 0 },
+        { name: "r_knee", x: 0.5, y: 0.7, z: 0 },
+        { name: "l_foot", x: -0.5, y: 0, z: 0.4 },
+        { name: "r_foot", x: 0.5, y: 0, z: 0.4 },
+      ];
+      const edges = [
+        ["head", "neck"],
+        ["neck", "chest"],
+        ["chest", "pelvis"],
+        ["neck", "l_shoulder"],
+        ["neck", "r_shoulder"],
+        ["l_shoulder", "l_elbow"],
+        ["l_elbow", "l_hand"],
+        ["r_shoulder", "r_elbow"],
+        ["r_elbow", "r_hand"],
+        ["pelvis", "l_knee"],
+        ["l_knee", "l_foot"],
+        ["pelvis", "r_knee"],
+        ["r_knee", "r_foot"],
+      ];
+      function clonePoints() {
+        return basePoints.map((p) => ({ ...p }));
+      }
+      function findPoint(arr, name) {
+        return arr.find((p) => p.name === name);
+      }
+
+      let yaw = 0;
+      let pitch = 0.1;
+      let distance = 8;
+
+      const armRaiseSlider = document.getElementById("armRaiseSlider");
+      const legSpreadSlider = document.getElementById("legSpreadSlider");
+      const heightScaleSlider = document.getElementById("heightScaleSlider");
+      const armRaiseLabel = document.getElementById("armRaiseLabel");
+      const legSpreadLabel = document.getElementById("legSpreadLabel");
+      const heightScaleLabel = document.getElementById("heightScaleLabel");
+
+      let armRaiseRad = 0;
+      let legSpreadUnit = 0;
+      let heightScale = 1;
+
+      function updatePoseFromSliders() {
+        const armDeg = parseInt(armRaiseSlider.value, 10) || 0;
+        const legVal = parseInt(legSpreadSlider.value, 10) || 0;
+        const heightVal = parseInt(heightScaleSlider.value, 10) || 100;
+
+        armRaiseRad = (armDeg * Math.PI) / 180;
+        legSpreadUnit = legVal / 100;
+        heightScale = heightVal / 100;
+
+        armRaiseLabel.textContent = armDeg.toString();
+        legSpreadLabel.textContent = legSpreadUnit.toFixed(2);
+        heightScaleLabel.textContent = heightVal.toString();
+      }
+      updatePoseFromSliders();
+      armRaiseSlider.addEventListener("input", updatePoseFromSliders);
+      legSpreadSlider.addEventListener("input", updatePoseFromSliders);
+      heightScaleSlider.addEventListener("input", updatePoseFromSliders);
+
+      function projectPoint(px, py, pz, width, height) {
+        py *= heightScale;
+        const cosy = Math.cos(yaw);
+        const siny = Math.sin(yaw);
+        const cosp = Math.cos(pitch);
+        const sinp = Math.sin(pitch);
+
+        let x = px,
+          y = py,
+          z = pz;
+
+        let xz = x * cosy - z * siny;
+        let zz = x * siny + z * cosy;
+        x = xz;
+        z = zz;
+
+        let yz = y * cosp - z * sinp;
+        let zz2 = y * sinp + z * cosp;
+        y = yz;
+        z = zz2;
+
+        const fov = 1.2;
+        const dz = z + distance;
+        const scale = (height * fov) / dz;
+        const sx = width / 2 + x * scale;
+        const sy = height - (height / 8 + y * scale);
+        return { x: sx, y: sy, depth: dz };
+      }
+
+      function applyPose(pointsArr) {
+        const lShoulder = findPoint(pointsArr, "l_shoulder");
+        const lElbow = findPoint(pointsArr, "l_elbow");
+        const lHand = findPoint(pointsArr, "l_hand");
+        const rShoulder = findPoint(pointsArr, "r_shoulder");
+        const rElbow = findPoint(pointsArr, "r_elbow");
+        const rHand = findPoint(pointsArr, "r_hand");
+
+        function rotateAround(px, py, pz, cx, cy, cz, angle) {
+          const dx = px - cx;
+          const dy = py - cy;
+          const dz = pz - cz;
+          const c = Math.cos(angle);
+          const s = Math.sin(angle);
+          const rx = dx * c - dy * s;
+          const ry = dx * s + dy * c;
+          return { x: cx + rx, y: cy + ry, z: cz + dz };
+        }
+
+        if (lShoulder && lElbow && lHand) {
+          let r1 = rotateAround(
+            lElbow.x,
+            lElbow.y,
+            lElbow.z,
+            lShoulder.x,
+            lShoulder.y,
+            lShoulder.z,
+            armRaiseRad
+          );
+          lElbow.x = r1.x;
+          lElbow.y = r1.y;
+          lElbow.z = r1.z;
+
+          let r2 = rotateAround(
+            lHand.x,
+            lHand.y,
+            lHand.z,
+            lElbow.x,
+            lElbow.y,
+            lElbow.z,
+            armRaiseRad * 0.5
+          );
+          lHand.x = r2.x;
+          lHand.y = r2.y;
+          lHand.z = r2.z;
+        }
+        if (rShoulder && rElbow && rHand) {
+          let r1 = rotateAround(
+            rElbow.x,
+            rElbow.y,
+            rElbow.z,
+            rShoulder.x,
+            rShoulder.y,
+            rShoulder.z,
+            -armRaiseRad
+          );
+          rElbow.x = r1.x;
+          rElbow.y = r1.y;
+          rElbow.z = r1.z;
+
+          let r2 = rotateAround(
+            rHand.x,
+            rHand.y,
+            rHand.z,
+            rElbow.x,
+            rElbow.y,
+            rElbow.z,
+            -armRaiseRad * 0.5
+          );
+          rHand.x = r2.x;
+          rHand.y = r2.y;
+          rHand.z = r2.z;
+        }
+
+        const lKnee = findPoint(pointsArr, "l_knee");
+        const rKnee = findPoint(pointsArr, "r_knee");
+        const lFoot = findPoint(pointsArr, "l_foot");
+        const rFoot = findPoint(pointsArr, "r_foot");
+        if (lKnee && rKnee && lFoot && rFoot) {
+          const spread = legSpreadUnit;
+          lKnee.x = -0.5 - spread;
+          rKnee.x = 0.5 + spread;
+          lFoot.x = -0.5 - spread;
+          rFoot.x = 0.5 + spread;
+        }
+      }
+
+      function renderStickman(ctx, width, height) {
+        ctx.clearRect(0, 0, width, height);
+        ctx.fillStyle = "#020218";
+        ctx.fillRect(0, 0, width, height);
+
+        ctx.strokeStyle = "#222244";
+        ctx.lineWidth = 1;
+        const gridSize = 0.5;
+        for (let i = -4; i <= 4; i++) {
+          const a = projectPoint(i * gridSize, 0, -2, width, height);
+          const b = projectPoint(i * gridSize, 0, 2, width, height);
+          ctx.beginPath();
+          ctx.moveTo(a.x, a.y);
+          ctx.lineTo(b.x, b.y);
+          ctx.stroke();
+        }
+
+        const posed = clonePoints();
+        applyPose(posed);
+
+        ctx.strokeStyle = "#00ffcc";
+        ctx.lineWidth = 3;
+        edges.forEach(([aName, bName]) => {
+          const a = findPoint(posed, aName);
+          const b = findPoint(posed, bName);
+          const pa = projectPoint(a.x, a.y, a.z, width, height);
+          const pb = projectPoint(b.x, b.y, b.z, width, height);
+          ctx.beginPath();
+          ctx.moveTo(pa.x, pa.y);
+          ctx.lineTo(pb.x, pb.y);
+          ctx.stroke();
+        });
+
+        const head = findPoint(posed, "head");
+        const neck = findPoint(posed, "neck");
+        if (head && neck) {
+          const pHead = projectPoint(head.x, head.y, head.z, width, height);
+          const pNeck = projectPoint(neck.x, neck.y, neck.z, width, height);
+          const r = Math.hypot(pHead.y - pNeck.y, pHead.x - pNeck.x) * 0.6;
+          ctx.strokeStyle = "#ffdd88";
+          ctx.lineWidth = 2;
+          ctx.beginPath();
+          ctx.arc(pHead.x, pHead.y, r, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+      }
+
+      let isRotating = false;
+      let lastMouseX = 0;
+      let lastMouseY = 0;
+
+      modelCanvas.addEventListener("mousedown", (e) => {
+        isRotating = true;
+        lastMouseX = e.clientX;
+        lastMouseY = e.clientY;
+        modelCanvas.style.cursor = "grabbing";
+      });
+      window.addEventListener("mouseup", () => {
+        isRotating = false;
+        modelCanvas.style.cursor = "grab";
+      });
+      window.addEventListener("mousemove", (e) => {
+        if (!isRotating) return;
+        const dx = e.clientX - lastMouseX;
+        const dy = e.clientY - lastMouseY;
+        lastMouseX = e.clientX;
+        lastMouseY = e.clientY;
+
+        yaw += dx * 0.01;
+        pitch += dy * 0.01;
+        const maxPitch = Math.PI / 2 - 0.1;
+        if (pitch > maxPitch) pitch = maxPitch;
+        if (pitch < -maxPitch) pitch = -maxPitch;
+      });
+
+      modelCanvas.addEventListener("wheel", (e) => {
+        e.preventDefault();
+        distance += e.deltaY * 0.01;
+        if (distance < 4) distance = 4;
+        if (distance > 16) distance = 16;
+      });
+
+      function reset3DView() {
+        yaw = 0;
+        pitch = 0.1;
+        distance = 8;
+        armRaiseSlider.value = 0;
+        legSpreadSlider.value = 0;
+        heightScaleSlider.value = 100;
+        updatePoseFromSliders();
+      }
+      document.getElementById("reset3DBtn").addEventListener("click", () => {
+        reset3DView();
+      });
+
+      function modelLoop() {
+        renderStickman(modelCtx, modelCanvas.width, modelCanvas.height);
+        requestAnimationFrame(modelLoop);
+      }
+      modelLoop();
+
+      /* ---- 3D 스냅샷 → Guide ---- */
+      const snapFrom3DBtn = document.getElementById("snapFrom3DBtn");
+      snapFrom3DBtn.addEventListener("click", () => {
+        const size = parseInt(canvasSizeSelect.value, 10) || 768;
+        resizeAllCanvases(size, size);
+
+        // 최신 포즈로 3D 다시 렌더링
+        renderStickman(modelCtx, modelCanvas.width, modelCanvas.height);
+
+        // bgCanvas 초기화 후 modelCanvas 복사
+        bgCtx.fillStyle = "#000";
+        bgCtx.fillRect(0, 0, size, size);
+        bgCtx.drawImage(
+          modelCanvas,
+          0,
+          0,
+          modelCanvas.width,
+          modelCanvas.height,
+          0,
+          0,
+          size,
+          size
+        );
+
+        drawCtx.clearRect(0, 0, size, size);
+        ratioCtx.clearRect(0, 0, size, size);
+        drawProportionOverlay();
+
+        guideFileName = "soft3d_snapshot.png";
+        guideFrom3D = true;
+
+        statusText.textContent =
+          "3D 스틱맨 스냅샷을 Guide로 보냈습니다. 위에 네 스타일대로 스케치를 그려보세요.";
+      });
+    </script>
+  </body>
+</html>

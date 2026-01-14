@@ -1,0 +1,821 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Line → Flat (밑색만) 테스트 MVP</title>
+  <style>
+    :root { color-scheme: dark; }
+    body { margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background:#0b0f14; color:#e7eef7; }
+    header { padding: 12px 16px; border-bottom: 1px solid #1c2633; display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
+    header .hint { opacity:.8; font-size:12px; }
+    main { display:grid; grid-template-columns: 280px 1fr 320px; gap: 12px; padding: 12px; }
+    .panel { background:#0f1621; border:1px solid #1c2633; border-radius:12px; overflow:hidden; }
+    .panel h3 { margin:0; padding:10px 12px; border-bottom:1px solid #1c2633; font-size:13px; letter-spacing:.2px; }
+    .panel .content { padding: 12px; }
+    .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
+    .col { display:flex; flex-direction:column; gap:8px; }
+    button, input[type="file"]::file-selector-button {
+      background:#1b2a3d; border:1px solid #29415e; color:#e7eef7;
+      padding:8px 10px; border-radius:10px; cursor:pointer; font-size:12px;
+    }
+    button:hover, input[type="file"]::file-selector-button:hover { background:#21354e; }
+    button:disabled { opacity:.5; cursor:not-allowed; }
+    .small { font-size:12px; opacity:.85; line-height:1.4; }
+    .list { display:flex; flex-direction:column; gap:8px; max-height: 60vh; overflow:auto; padding-right:4px; }
+    .thumb { border:1px solid #22344c; border-radius:10px; overflow:hidden; cursor:pointer; background:#0b0f14; }
+    .thumb.selected { outline:2px solid #5aa2ff; }
+    .thumb canvas { display:block; width:100%; height:auto; }
+    .badge { font-size:11px; padding:2px 8px; border-radius:999px; border:1px solid #29415e; background:#111a26; opacity:.9; }
+    .canvasWrap { position:relative; }
+    canvas#view { width:100%; height:auto; display:block; background:#ffffff; }
+    .overlayUI {
+      position:absolute; left:10px; top:10px; display:flex; gap:8px; flex-wrap:wrap;
+      background: rgba(10,15,20,.62); border:1px solid rgba(45,70,98,.7);
+      padding:8px; border-radius:12px; backdrop-filter: blur(6px);
+    }
+    .k { font-size:11px; padding:2px 8px; border-radius:999px; border:1px solid rgba(45,70,98,.7); background:rgba(17,26,38,.7); }
+    .labelGrid { display:grid; grid-template-columns: 1fr 1fr; gap:8px; }
+    .labelBtn { display:flex; justify-content:space-between; gap:8px; align-items:center; }
+    .labelBtn .swatch { width:14px; height:14px; border-radius:4px; border:1px solid #00000055; }
+    input[type="color"] { width:44px; height:32px; border:none; background:transparent; padding:0; cursor:pointer; }
+    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size:11px; opacity:.9; }
+    .warn { color:#ffcf5a; }
+    .ok { color:#7bffb3; }
+    .sep { height:1px; background:#1c2633; margin:10px 0; }
+  </style>
+</head>
+<body>
+<header>
+  <div class="row">
+    <input id="file" type="file" accept="image/png,image/jpeg,image/webp" />
+    <button id="btnSplit" disabled>컷 자동 분리</button>
+    <button id="btnAnalyze" disabled>영역 분석(밑색 준비)</button>
+    <button id="btnClearAssign" disabled>현재 컷 라벨 초기화</button>
+  </div>
+  <span class="hint">
+    닫힌 선 위주일 때: 클릭으로 영역 라벨링 → 밑색 Flat 생성 → PNG/PSD 다운로드
+  </span>
+</header>
+
+<main>
+  <!-- Left: Cuts -->
+  <section class="panel">
+    <h3>컷 목록</h3>
+    <div class="content">
+      <div class="small">
+        1) 선화 PNG 업로드 → 2) 컷 자동 분리 → 3) 컷 선택 → 4) 영역 분석 → 5) 클릭 라벨링
+      </div>
+      <div class="sep"></div>
+      <div id="cutsInfo" class="small mono">업로드 대기</div>
+      <div class="sep"></div>
+      <div id="cutsList" class="list"></div>
+    </div>
+  </section>
+
+  <!-- Center: Viewer -->
+  <section class="panel">
+    <h3>뷰어 (클릭: 영역 라벨링)</h3>
+    <div class="content">
+      <div class="canvasWrap">
+        <canvas id="view"></canvas>
+        <div class="overlayUI">
+          <span class="k">단축키: 1 피부 / 2 머리 / 3 상의 / 4 하의 / 5 눈 / 6 배경</span>
+          <span class="k">모드: <b id="modeText">대기</b></span>
+          <span class="k">선 임계값: <b id="thrText">200</b></span>
+          <span class="k">처리 스케일: <b id="scaleText">1.0</b></span>
+        </div>
+      </div>
+
+      <div class="sep"></div>
+      <div class="row">
+        <button id="btnTogglePreview" disabled>라인+밑색 미리보기 ON/OFF</button>
+        <button id="btnDownloadFlat" disabled>Flat PNG 다운로드</button>
+        <button id="btnDownloadPSD" disabled>PSD 다운로드(레이어 2개)</button>
+      </div>
+      <div class="small warn" style="margin-top:8px;">
+        PSD 다운로드는 브라우저에서 라이브러리를 불러오며, 환경에 따라 느릴 수 있습니다.
+        작업용 MVP이므로 “밑색이 들어가는지” 검증이 목적입니다.
+      </div>
+      <div id="status" class="small mono" style="margin-top:8px;">-</div>
+    </div>
+  </section>
+
+  <!-- Right: Labels & Palette -->
+  <section class="panel">
+    <h3>라벨 & 임시 팔레트(밑색만)</h3>
+    <div class="content">
+      <div class="small">
+        팔레트가 아직 없으니 임시색으로 시작합니다. 나중에 JSON으로 교체 가능합니다.
+      </div>
+
+      <div class="sep"></div>
+
+      <div class="labelGrid" id="labels"></div>
+
+      <div class="sep"></div>
+
+      <div class="small mono">
+        현재 선택 라벨: <b id="currentLabel">Skin</b>
+        <span class="badge" id="currentKey">1</span>
+      </div>
+
+      <div class="sep"></div>
+
+      <div class="small">
+        전처리 설정(기본값 권장)
+      </div>
+      <div class="row" style="margin-top:6px;">
+        <label class="small mono">Threshold</label>
+        <input id="thr" type="range" min="80" max="245" value="200" />
+      </div>
+      <div class="row" style="margin-top:6px;">
+        <label class="small mono">Max Proc Width</label>
+        <input id="maxW" type="number" value="1200" style="width:90px; background:#0b0f14; border:1px solid #29415e; color:#e7eef7; border-radius:10px; padding:8px;" />
+      </div>
+
+      <div class="sep"></div>
+      <div class="small ok" id="readyHint">업로드 후 진행하세요.</div>
+    </div>
+  </section>
+</main>
+
+<!-- ag-psd (PSD 생성용) -->
+<script src="https://unpkg.com/ag-psd@16.4.2/dist/psd.min.js"></script>
+
+<script>
+(() => {
+  // ---------------------------
+  // State
+  // ---------------------------
+  const state = {
+    srcImage: null,
+    srcCanvas: document.createElement('canvas'),
+    cuts: [],            // {y0,y1, canvas, thumbCanvas}
+    selectedCut: -1,
+    // analysis
+    procScale: 1.0,
+    procW: 0,
+    procH: 0,
+    lineRGBA: null,      // Uint8ClampedArray (proc)
+    wall: null,          // Uint8Array (proc) 1=wall(ink)
+    regionId: null,      // Int32Array (proc) -1=unassigned
+    regionCount: 0,
+    regionLabel: new Map(), // regionId -> labelKey
+    flatRGBA: null,      // Uint8ClampedArray (proc RGBA)
+    previewOn: true,
+    // labels/palette
+    currentLabelKey: 'Skin',
+    keys: ['Skin','Hair','TopCloth','BottomCloth','Eye','Background'],
+    keyHot: {'1':'Skin','2':'Hair','3':'TopCloth','4':'BottomCloth','5':'Eye','6':'Background'},
+    palette: {
+      Skin: '#F2C9B4',
+      Hair: '#2E2A28',
+      TopCloth: '#3A6EA5',
+      BottomCloth: '#2F3E46',
+      Eye: '#6B4EFF',          // iris 느낌(밑색 단순화)
+      Background: '#E6E6E6'
+    }
+  };
+
+  // ---------------------------
+  // DOM
+  // ---------------------------
+  const $ = (id) => document.getElementById(id);
+  const file = $('file');
+  const btnSplit = $('btnSplit');
+  const btnAnalyze = $('btnAnalyze');
+  const btnClearAssign = $('btnClearAssign');
+  const cutsList = $('cutsList');
+  const cutsInfo = $('cutsInfo');
+  const view = $('view');
+  const status = $('status');
+  const btnTogglePreview = $('btnTogglePreview');
+  const btnDownloadFlat = $('btnDownloadFlat');
+  const btnDownloadPSD = $('btnDownloadPSD');
+  const labels = $('labels');
+  const currentLabel = $('currentLabel');
+  const currentKey = $('currentKey');
+  const thr = $('thr');
+  const thrText = $('thrText');
+  const maxW = $('maxW');
+  const modeText = $('modeText');
+  const scaleText = $('scaleText');
+  const readyHint = $('readyHint');
+
+  const viewCtx = view.getContext('2d', { willReadFrequently: true });
+
+  // ---------------------------
+  // Utils
+  // ---------------------------
+  function setStatus(msg) { status.textContent = msg; }
+  function clamp(v,min,max){ return Math.max(min, Math.min(max,v)); }
+
+  function hexToRgb(hex) {
+    const h = hex.replace('#','').trim();
+    const r = parseInt(h.slice(0,2),16);
+    const g = parseInt(h.slice(2,4),16);
+    const b = parseInt(h.slice(4,6),16);
+    return [r,g,b];
+  }
+
+  function createCanvas(w,h) {
+    const c = document.createElement('canvas');
+    c.width = w; c.height = h;
+    return c;
+  }
+
+  function drawToFit(ctx, imgCanvas, outW, outH) {
+    ctx.clearRect(0,0,outW,outH);
+    ctx.drawImage(imgCanvas, 0,0, imgCanvas.width, imgCanvas.height, 0,0, outW, outH);
+  }
+
+  function computeRowInkRatio(imgData, y, w) {
+    // ink if pixel is "dark" (threshold)
+    const d = imgData.data;
+    const t = Number(thr.value);
+    let ink = 0;
+    for (let x=0; x<w; x++) {
+      const i = (y*w + x)*4;
+      const r = d[i], g = d[i+1], b = d[i+2];
+      const gray = (r*0.299 + g*0.587 + b*0.114);
+      if (gray < t) ink++;
+    }
+    return ink / w;
+  }
+
+  function splitCutsFromTallImage(canvas) {
+    const w = canvas.width, h = canvas.height;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    const imgData = ctx.getImageData(0,0,w,h);
+
+    // Detect horizontal whitespace bands:
+    // A row is "blank" if ink ratio is below a very small threshold.
+    const blankThresh = 0.002;      // 0.2% ink
+    const minBand = Math.max(10, Math.floor(h * 0.01)); // minimum blank band height
+    const rows = new Uint8Array(h);
+
+    for (let y=0; y<h; y++) {
+      const ratio = computeRowInkRatio(imgData, y, w);
+      rows[y] = (ratio < blankThresh) ? 1 : 0;
+    }
+
+    // Find blank bands
+    const bands = [];
+    let y = 0;
+    while (y < h) {
+      if (rows[y] === 1) {
+        let y0 = y;
+        while (y < h && rows[y] === 1) y++;
+        let y1 = y; // [y0, y1)
+        if ((y1 - y0) >= minBand) bands.push({y0,y1});
+      } else {
+        y++;
+      }
+    }
+
+    // Convert blank bands into cut ranges between them
+    // We'll treat cuts as non-blank regions between wide blank bands.
+    const cuts = [];
+    let start = 0;
+    for (const b of bands) {
+      const end = b.y0;
+      if (end - start > minBand) cuts.push({y0:start, y1:end});
+      start = b.y1;
+    }
+    if (h - start > minBand) cuts.push({y0:start, y1:h});
+
+    // Clean cuts: remove those too small or mostly blank
+    const filtered = [];
+    for (const c of cuts) {
+      const ch = c.y1 - c.y0;
+      if (ch < 50) continue;
+      filtered.push(c);
+    }
+    return filtered;
+  }
+
+  function extractCutCanvas(srcCanvas, y0, y1) {
+    const w = srcCanvas.width;
+    const h = y1 - y0;
+    const c = createCanvas(w, h);
+    const ctx = c.getContext('2d');
+    ctx.drawImage(srcCanvas, 0,y0, w,h, 0,0, w,h);
+    return c;
+  }
+
+  function binarizeToWall(procCtx, w, h) {
+    // wall=1 for "ink" pixels (dark)
+    const img = procCtx.getImageData(0,0,w,h);
+    const d = img.data;
+    const t = Number(thr.value);
+    const wall = new Uint8Array(w*h);
+    for (let i=0, p=0; i<d.length; i+=4, p++) {
+      const r=d[i], g=d[i+1], b=d[i+2];
+      const gray = (r*0.299 + g*0.587 + b*0.114);
+      wall[p] = (gray < t) ? 1 : 0;
+    }
+    return {img, wall};
+  }
+
+  function morphClose(wall, w, h) {
+    // very small close: dilate(1) then erode(1) to fix 1px gaps.
+    // For MVP speed: optional, lightweight.
+    const dil = new Uint8Array(w*h);
+    const idx = (x,y)=> y*w+x;
+    for (let y=0;y<h;y++){
+      for (let x=0;x<w;x++){
+        let v = 0;
+        for (let dy=-1;dy<=1;dy++){
+          const yy=y+dy; if(yy<0||yy>=h) continue;
+          for (let dx=-1;dx<=1;dx++){
+            const xx=x+dx; if(xx<0||xx>=w) continue;
+            if (wall[idx(xx,yy)]) { v=1; dy=2; break; }
+          }
+        }
+        dil[idx(x,y)] = v;
+      }
+    }
+    const ero = new Uint8Array(w*h);
+    for (let y=0;y<h;y++){
+      for (let x=0;x<w;x++){
+        let v = 1;
+        for (let dy=-1;dy<=1;dy++){
+          const yy=y+dy; if(yy<0||yy>=h) continue;
+          for (let dx=-1;dx<=1;dx++){
+            const xx=x+dx; if(xx<0||xx>=w) continue;
+            if (!dil[idx(xx,yy)]) { v=0; dy=2; break; }
+          }
+        }
+        ero[idx(x,y)] = v;
+      }
+    }
+    return ero;
+  }
+
+  function labelRegions(wall, w, h) {
+    // Regions are non-wall pixels connected 4-neighborhood.
+    const regionId = new Int32Array(w*h);
+    regionId.fill(-1);
+
+    const qx = new Int32Array(w*h);
+    const qy = new Int32Array(w*h);
+
+    let region = 0;
+    const idx = (x,y)=> y*w+x;
+
+    for (let y=0;y<h;y++){
+      for (let x=0;x<w;x++){
+        const p = idx(x,y);
+        if (wall[p]===1) continue;
+        if (regionId[p]!==-1) continue;
+
+        // flood fill
+        let head=0, tail=0;
+        qx[tail]=x; qy[tail]=y; tail++;
+        regionId[p]=region;
+
+        while(head<tail){
+          const cx=qx[head], cy=qy[head]; head++;
+          // 4 neighbors
+          const nb = [
+            [cx-1,cy],[cx+1,cy],[cx,cy-1],[cx,cy+1]
+          ];
+          for (const [nx,ny] of nb){
+            if(nx<0||nx>=w||ny<0||ny>=h) continue;
+            const pp = idx(nx,ny);
+            if (wall[pp]===1) continue;
+            if (regionId[pp]!==-1) continue;
+            regionId[pp]=region;
+            qx[tail]=nx; qy[tail]=ny; tail++;
+          }
+        }
+
+        region++;
+      }
+    }
+    return {regionId, regionCount: region};
+  }
+
+  function buildFlatRGBA(regionId, wall, w, h, regionLabel, palette) {
+    const out = new Uint8ClampedArray(w*h*4);
+    // Default: transparent
+    for (let i=0;i<out.length;i+=4) out[i+3]=0;
+
+    const rgbCache = new Map();
+    function keyRgb(k){
+      if (!rgbCache.has(k)) rgbCache.set(k, hexToRgb(palette[k]));
+      return rgbCache.get(k);
+    }
+
+    for (let y=0;y<h;y++){
+      for (let x=0;x<w;x++){
+        const p = y*w+x;
+        if (wall[p]===1) continue;
+        const rid = regionId[p];
+        const lab = regionLabel.get(rid);
+        if (!lab) continue;
+        const [r,g,b]=keyRgb(lab);
+        const i = p*4;
+        out[i]=r; out[i+1]=g; out[i+2]=b; out[i+3]=255;
+      }
+    }
+    return out;
+  }
+
+  function drawViewer() {
+    const ci = state.selectedCut;
+    if (ci < 0) return;
+
+    const cutCanvas = state.cuts[ci].canvas;
+    const showPreview = state.previewOn && state.flatRGBA && state.procW && state.procH;
+
+    // Base: white
+    view.width = cutCanvas.width;
+    view.height = cutCanvas.height;
+    viewCtx.clearRect(0,0,view.width,view.height);
+    viewCtx.fillStyle = '#ffffff';
+    viewCtx.fillRect(0,0,view.width,view.height);
+
+    // If preview mode: draw flat (scaled back to original) then line
+    if (showPreview) {
+      // Render flatRGBA onto temp canvas at proc size
+      const tmp = createCanvas(state.procW, state.procH);
+      const tctx = tmp.getContext('2d');
+      const img = tctx.createImageData(state.procW, state.procH);
+      img.data.set(state.flatRGBA);
+      tctx.putImageData(img, 0,0);
+
+      // scale to original cut size (nearest-ish)
+      viewCtx.imageSmoothingEnabled = false; // keep crisp
+      viewCtx.drawImage(tmp, 0,0, state.procW, state.procH, 0,0, view.width, view.height);
+    }
+
+    // Draw original line art
+    viewCtx.imageSmoothingEnabled = true;
+    viewCtx.drawImage(cutCanvas, 0,0);
+
+    modeText.textContent = showPreview ? '미리보기' : '라인만';
+  }
+
+  function refreshButtons() {
+    const hasImage = !!state.srcImage;
+    btnSplit.disabled = !hasImage;
+    const hasCuts = state.cuts.length > 0;
+    btnAnalyze.disabled = !(hasCuts && state.selectedCut >= 0);
+    btnClearAssign.disabled = !(hasCuts && state.selectedCut >= 0);
+    btnTogglePreview.disabled = !(hasCuts && state.selectedCut >= 0 && state.flatRGBA);
+    btnDownloadFlat.disabled = !(hasCuts && state.selectedCut >= 0 && state.flatRGBA);
+    btnDownloadPSD.disabled = !(hasCuts && state.selectedCut >= 0 && state.flatRGBA && window.agPsd);
+  }
+
+  function buildLabelsUI() {
+    labels.innerHTML = '';
+    state.keys.forEach((k, idx) => {
+      const btn = document.createElement('button');
+      btn.className = 'labelBtn';
+      btn.type = 'button';
+      btn.dataset.key = k;
+
+      const left = document.createElement('span');
+      left.textContent = k;
+
+      const sw = document.createElement('span');
+      sw.className = 'swatch';
+      sw.style.background = state.palette[k];
+
+      const color = document.createElement('input');
+      color.type = 'color';
+      color.value = state.palette[k];
+      color.title = '밑색 변경';
+
+      const hot = document.createElement('span');
+      hot.className = 'badge';
+      hot.textContent = String(idx+1);
+
+      btn.append(left, sw, color, hot);
+
+      btn.addEventListener('click', () => setCurrentLabel(k, String(idx+1)));
+
+      color.addEventListener('input', (e) => {
+        state.palette[k] = e.target.value.toUpperCase();
+        sw.style.background = state.palette[k];
+        if (state.flatRGBA) {
+          // rebuild flat quickly with new palette
+          state.flatRGBA = buildFlatRGBA(state.regionId, state.wall, state.procW, state.procH, state.regionLabel, state.palette);
+          drawViewer();
+        }
+      });
+
+      labels.appendChild(btn);
+    });
+    setCurrentLabel(state.currentLabelKey, '1');
+  }
+
+  function setCurrentLabel(k, hotKey) {
+    state.currentLabelKey = k;
+    currentLabel.textContent = k;
+    currentKey.textContent = hotKey ?? '';
+  }
+
+  function downloadBlob(blob, filename) {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url), 4000);
+  }
+
+  function canvasToBlob(c, type='image/png', quality=0.92) {
+    return new Promise((resolve) => c.toBlob(resolve, type, quality));
+  }
+
+  function getProcCanvasForCut(cutCanvas) {
+    // Scale down for faster processing, keep nearest sampling (AA OFF style)
+    const maxWidth = clamp(parseInt(maxW.value || '1200',10), 300, 4000);
+    const scale = Math.min(1, maxWidth / cutCanvas.width);
+    const w = Math.max(1, Math.floor(cutCanvas.width * scale));
+    const h = Math.max(1, Math.floor(cutCanvas.height * scale));
+    const c = createCanvas(w,h);
+    const ctx = c.getContext('2d', { willReadFrequently:true });
+    ctx.imageSmoothingEnabled = false;
+    ctx.drawImage(cutCanvas, 0,0, cutCanvas.width, cutCanvas.height, 0,0, w,h);
+    return {canvas:c, ctx, w, h, scale};
+  }
+
+  // ---------------------------
+  // Events
+  // ---------------------------
+  file.addEventListener('change', async () => {
+    const f = file.files?.[0];
+    if (!f) return;
+    const url = URL.createObjectURL(f);
+    const img = new Image();
+    img.onload = () => {
+      state.srcImage = img;
+      // draw to srcCanvas
+      state.srcCanvas.width = img.width;
+      state.srcCanvas.height = img.height;
+      const ctx = state.srcCanvas.getContext('2d');
+      ctx.drawImage(img, 0,0);
+      cutsInfo.textContent = `원본: ${img.width}×${img.height}px`;
+      readyHint.textContent = '컷 자동 분리를 눌러주세요.';
+      setStatus('이미지 로드 완료. 컷 자동 분리 가능.');
+      btnSplit.disabled = false;
+
+      // reset previous
+      state.cuts = [];
+      state.selectedCut = -1;
+      cutsList.innerHTML = '';
+      state.flatRGBA = null;
+      refreshButtons();
+      URL.revokeObjectURL(url);
+    };
+    img.onerror = () => {
+      setStatus('이미지 로드 실패');
+      URL.revokeObjectURL(url);
+    };
+    img.src = url;
+  });
+
+  btnSplit.addEventListener('click', () => {
+    if (!state.srcImage) return;
+    setStatus('컷 자동 분리 중...');
+    const ranges = splitCutsFromTallImage(state.srcCanvas);
+
+    state.cuts = ranges.map((r, idx) => {
+      const c = extractCutCanvas(state.srcCanvas, r.y0, r.y1);
+      const t = createCanvas(260, Math.round(260 * (c.height / c.width)));
+      const tctx = t.getContext('2d');
+      tctx.fillStyle = '#fff'; tctx.fillRect(0,0,t.width,t.height);
+      tctx.drawImage(c, 0,0, c.width,c.height, 0,0, t.width,t.height);
+      return { y0:r.y0, y1:r.y1, canvas:c, thumb:t };
+    });
+
+    cutsList.innerHTML = '';
+    state.cuts.forEach((cut, idx) => {
+      const wrap = document.createElement('div');
+      wrap.className = 'thumb';
+      const c = document.createElement('canvas');
+      c.width = cut.thumb.width;
+      c.height = cut.thumb.height;
+      c.getContext('2d').drawImage(cut.thumb, 0,0);
+      wrap.appendChild(c);
+
+      const meta = document.createElement('div');
+      meta.className = 'small mono';
+      meta.style.padding = '6px 8px';
+      meta.textContent = `cut_${String(idx+1).padStart(3,'0')}  (${cut.canvas.width}×${cut.canvas.height})`;
+      wrap.appendChild(meta);
+
+      wrap.addEventListener('click', () => selectCut(idx));
+      cutsList.appendChild(wrap);
+    });
+
+    cutsInfo.textContent = `컷 ${state.cuts.length}개 감지`;
+    readyHint.textContent = '컷을 선택한 뒤 “영역 분석”을 누르세요.';
+    setStatus(`컷 ${state.cuts.length}개 분리 완료. 컷 선택 필요.`);
+    if (state.cuts.length > 0) selectCut(0);
+    refreshButtons();
+  });
+
+  function selectCut(idx) {
+    state.selectedCut = idx;
+    // UI highlight
+    [...cutsList.children].forEach((el, i) => el.classList.toggle('selected', i===idx));
+
+    // reset analysis for this cut
+    state.regionLabel = new Map();
+    state.flatRGBA = null;
+    state.regionId = null;
+    state.wall = null;
+    state.regionCount = 0;
+
+    // draw viewer (line only)
+    drawViewer();
+
+    btnAnalyze.disabled = false;
+    btnClearAssign.disabled = false;
+    btnTogglePreview.disabled = true;
+    btnDownloadFlat.disabled = true;
+    btnDownloadPSD.disabled = true;
+
+    setStatus(`선택: cut_${String(idx+1).padStart(3,'0')} (영역 분석 필요)`);
+  }
+
+  btnAnalyze.addEventListener('click', () => {
+    const ci = state.selectedCut;
+    if (ci < 0) return;
+
+    const cutCanvas = state.cuts[ci].canvas;
+    setStatus('영역 분석 중(이진화→끊김보정→라벨링)...');
+
+    // prepare processing canvas (scale down if needed)
+    const {canvas:pc, ctx:pctx, w, h, scale} = getProcCanvasForCut(cutCanvas);
+    state.procScale = scale;
+    state.procW = w;
+    state.procH = h;
+    scaleText.textContent = scale.toFixed(3);
+
+    // binarize
+    const {img, wall:wall0} = binarizeToWall(pctx, w, h);
+    // small close to fix micro gaps
+    const wall = morphClose(wall0, w, h);
+
+    // label regions
+    const {regionId, regionCount} = labelRegions(wall, w, h);
+
+    state.lineRGBA = img.data; // for potential debug
+    state.wall = wall;
+    state.regionId = regionId;
+    state.regionCount = regionCount;
+    state.regionLabel = new Map();
+    state.flatRGBA = buildFlatRGBA(regionId, wall, w, h, state.regionLabel, state.palette);
+
+    thrText.textContent = String(thr.value);
+    setStatus(`영역 분석 완료. region=${regionCount}개. 클릭으로 라벨링 시작.`);
+    readyHint.textContent = '클릭으로 영역을 칠하세요. 단축키 1~6로 라벨 선택.';
+
+    btnTogglePreview.disabled = false;
+    btnDownloadFlat.disabled = false;
+    btnDownloadPSD.disabled = false;
+
+    state.previewOn = true;
+    drawViewer();
+    refreshButtons();
+  });
+
+  btnClearAssign.addEventListener('click', () => {
+    state.regionLabel = new Map();
+    if (state.regionId && state.wall) {
+      state.flatRGBA = buildFlatRGBA(state.regionId, state.wall, state.procW, state.procH, state.regionLabel, state.palette);
+      drawViewer();
+      setStatus('현재 컷 라벨 초기화 완료.');
+      refreshButtons();
+    }
+  });
+
+  btnTogglePreview.addEventListener('click', () => {
+    state.previewOn = !state.previewOn;
+    drawViewer();
+  });
+
+  thr.addEventListener('input', () => {
+    thrText.textContent = String(thr.value);
+  });
+
+  window.addEventListener('keydown', (e) => {
+    const k = e.key;
+    if (state.keyHot[k]) {
+      const label = state.keyHot[k];
+      setCurrentLabel(label, k);
+    }
+  });
+
+  view.addEventListener('click', (e) => {
+    if (!state.regionId || state.selectedCut < 0) return;
+
+    // map click to cut pixel coords
+    const rect = view.getBoundingClientRect();
+    const x = Math.floor((e.clientX - rect.left) * (view.width / rect.width));
+    const y = Math.floor((e.clientY - rect.top) * (view.height / rect.height));
+
+    // map to processing coords
+    const px = Math.floor(x * state.procScale);
+    const py = Math.floor(y * state.procScale);
+    const w = state.procW, h = state.procH;
+    if (px<0 || py<0 || px>=w || py>=h) return;
+
+    const p = py*w + px;
+    if (state.wall[p] === 1) {
+      setStatus('클릭 위치가 선(벽)입니다. 내부 영역을 클릭하세요.');
+      return;
+    }
+
+    const rid = state.regionId[p];
+    if (rid < 0) return;
+
+    state.regionLabel.set(rid, state.currentLabelKey);
+    state.flatRGBA = buildFlatRGBA(state.regionId, state.wall, w, h, state.regionLabel, state.palette);
+    drawViewer();
+    setStatus(`region ${rid} → ${state.currentLabelKey} 적용`);
+    refreshButtons();
+  });
+
+  btnDownloadFlat.addEventListener('click', async () => {
+    if (!state.flatRGBA || state.selectedCut < 0) return;
+    const ci = state.selectedCut;
+
+    // export at processing resolution (빠른 테스트 목적)
+    const out = createCanvas(state.procW, state.procH);
+    const octx = out.getContext('2d');
+    const img = octx.createImageData(state.procW, state.procH);
+    img.data.set(state.flatRGBA);
+    octx.putImageData(img, 0,0);
+
+    const blob = await canvasToBlob(out, 'image/png');
+    downloadBlob(blob, `cut_${String(ci+1).padStart(3,'0')}_flat.png`);
+  });
+
+  btnDownloadPSD.addEventListener('click', async () => {
+    if (!state.flatRGBA || state.selectedCut < 0 || !window.agPsd) return;
+    const ci = state.selectedCut;
+
+    // Build two layer PSD (processing resolution)
+    const w = state.procW, h = state.procH;
+
+    // Create Flat canvas
+    const flatC = createCanvas(w,h);
+    const fctx = flatC.getContext('2d');
+    const flatImg = fctx.createImageData(w,h);
+    flatImg.data.set(state.flatRGBA);
+    fctx.putImageData(flatImg, 0,0);
+
+    // Create Line canvas (scaled down from original cut, smoothing off to mimic AA OFF)
+    const lineC = createCanvas(w,h);
+    const lctx = lineC.getContext('2d');
+    lctx.imageSmoothingEnabled = false;
+    lctx.fillStyle = '#fff'; lctx.fillRect(0,0,w,h);
+    const cutCanvas = state.cuts[ci].canvas;
+    lctx.drawImage(cutCanvas, 0,0, cutCanvas.width, cutCanvas.height, 0,0, w,h);
+
+    // Convert canvases to ImageData for ag-psd
+    const lineData = lctx.getImageData(0,0,w,h);
+    const flatData2 = fctx.getImageData(0,0,w,h);
+
+    const psd = {
+      width: w,
+      height: h,
+      children: [
+        {
+          name: 'Line',
+          canvas: lineData, // ag-psd accepts ImageData as "canvas"
+          opacity: 255,
+          blendMode: 'normal'
+        },
+        {
+          name: 'Flat',
+          canvas: flatData2,
+          opacity: 255,
+          blendMode: 'normal'
+        }
+      ]
+    };
+
+    const buffer = window.agPsd.writePsd(psd);
+    const blob = new Blob([buffer], {type:'application/octet-stream'});
+    downloadBlob(blob, `cut_${String(ci+1).padStart(3,'0')}.psd`);
+  });
+
+  // ---------------------------
+  // Init UI
+  // ---------------------------
+  buildLabelsUI();
+  refreshButtons();
+  setStatus('선화 PNG 업로드 후 시작하세요.');
+})();
+</script>
+</body>
+</html>

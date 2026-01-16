@@ -1,821 +1,1586 @@
 <!doctype html>
 <html lang="ko">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Line → Flat (밑색만) 테스트 MVP</title>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>Webtoon Auto Flat v4 (Face→Neck Skin + Arm Skin)</title>
   <style>
-    :root { color-scheme: dark; }
-    body { margin: 0; font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; background:#0b0f14; color:#e7eef7; }
-    header { padding: 12px 16px; border-bottom: 1px solid #1c2633; display:flex; gap:12px; align-items:center; flex-wrap:wrap; }
-    header .hint { opacity:.8; font-size:12px; }
-    main { display:grid; grid-template-columns: 280px 1fr 320px; gap: 12px; padding: 12px; }
-    .panel { background:#0f1621; border:1px solid #1c2633; border-radius:12px; overflow:hidden; }
-    .panel h3 { margin:0; padding:10px 12px; border-bottom:1px solid #1c2633; font-size:13px; letter-spacing:.2px; }
-    .panel .content { padding: 12px; }
-    .row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; }
-    .col { display:flex; flex-direction:column; gap:8px; }
-    button, input[type="file"]::file-selector-button {
-      background:#1b2a3d; border:1px solid #29415e; color:#e7eef7;
-      padding:8px 10px; border-radius:10px; cursor:pointer; font-size:12px;
+    :root{
+      --bg:#0b0d12; --panel:#121622; --panel2:#171c2b;
+      --text:#e9eefc; --muted:#9aa6c4; --line:#27304a;
+      --accent:#79a7ff; --good:#35d07f; --bad:#ff5a6a; --warn:#ffd38a;
     }
-    button:hover, input[type="file"]::file-selector-button:hover { background:#21354e; }
-    button:disabled { opacity:.5; cursor:not-allowed; }
-    .small { font-size:12px; opacity:.85; line-height:1.4; }
-    .list { display:flex; flex-direction:column; gap:8px; max-height: 60vh; overflow:auto; padding-right:4px; }
-    .thumb { border:1px solid #22344c; border-radius:10px; overflow:hidden; cursor:pointer; background:#0b0f14; }
-    .thumb.selected { outline:2px solid #5aa2ff; }
-    .thumb canvas { display:block; width:100%; height:auto; }
-    .badge { font-size:11px; padding:2px 8px; border-radius:999px; border:1px solid #29415e; background:#111a26; opacity:.9; }
-    .canvasWrap { position:relative; }
-    canvas#view { width:100%; height:auto; display:block; background:#ffffff; }
-    .overlayUI {
-      position:absolute; left:10px; top:10px; display:flex; gap:8px; flex-wrap:wrap;
-      background: rgba(10,15,20,.62); border:1px solid rgba(45,70,98,.7);
-      padding:8px; border-radius:12px; backdrop-filter: blur(6px);
+    *{box-sizing:border-box; font-family: system-ui, -apple-system, Segoe UI, Roboto, Arial;}
+    body{margin:0; background:var(--bg); color:var(--text);}
+    .app{display:grid; grid-template-columns: 360px 1fr 420px; height:100vh;}
+    .left,.right{background:var(--panel); overflow:auto;}
+    .left{border-right:1px solid var(--line);}
+    .right{border-left:1px solid var(--line);}
+    .mid{background:#0f1320; overflow:hidden; display:flex; flex-direction:column;}
+    header{padding:14px 16px; border-bottom:1px solid var(--line); background:linear-gradient(180deg,var(--panel),transparent);}
+    h1{margin:0; font-size:14px; letter-spacing:.3px; color:var(--muted);}
+    .section{padding:14px 16px; border-bottom:1px solid var(--line);}
+    .section h2{margin:0 0 10px; font-size:13px; color:#cfd7ef;}
+    .hint{font-size:12px; color:var(--muted); line-height:1.5;}
+    .row{display:flex; gap:10px; align-items:center; margin:8px 0;}
+    input[type="text"], input[type="number"], select{
+      width:100%; padding:10px 10px; border:1px solid var(--line);
+      background:var(--panel2); color:var(--text); border-radius:10px;
     }
-    .k { font-size:11px; padding:2px 8px; border-radius:999px; border:1px solid rgba(45,70,98,.7); background:rgba(17,26,38,.7); }
-    .labelGrid { display:grid; grid-template-columns: 1fr 1fr; gap:8px; }
-    .labelBtn { display:flex; justify-content:space-between; gap:8px; align-items:center; }
-    .labelBtn .swatch { width:14px; height:14px; border-radius:4px; border:1px solid #00000055; }
-    input[type="color"] { width:44px; height:32px; border:none; background:transparent; padding:0; cursor:pointer; }
-    .mono { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace; font-size:11px; opacity:.9; }
-    .warn { color:#ffcf5a; }
-    .ok { color:#7bffb3; }
-    .sep { height:1px; background:#1c2633; margin:10px 0; }
+    button{
+      padding:10px 12px; border:1px solid var(--line); background:var(--panel2);
+      color:var(--text); border-radius:10px; cursor:pointer;
+    }
+    button.primary{background:rgba(121,167,255,.18); border-color:rgba(121,167,255,.35);}
+    button.good{background:rgba(53,208,127,.16); border-color:rgba(53,208,127,.35);}
+    button.bad{background:rgba(255,90,106,.14); border-color:rgba(255,90,106,.35);}
+    button:disabled{opacity:.55; cursor:not-allowed;}
+    .pill{
+      font-size:12px; color:var(--muted); padding:6px 10px;
+      border:1px solid var(--line); border-radius:999px; background:rgba(23,28,43,.7);
+    }
+    .midTop{
+      padding:10px 12px; border-bottom:1px solid var(--line);
+      display:flex; gap:10px; align-items:center; flex-wrap:wrap;
+      background:linear-gradient(180deg, rgba(18,22,34,.85), rgba(18,22,34,.2));
+    }
+    .stage{
+      flex:1; display:grid; grid-template-columns: 1fr 1fr; gap:10px;
+      padding:10px; overflow:auto;
+    }
+    .canvasCard{
+      border:1px solid var(--line); border-radius:16px; background:rgba(18,22,34,.55);
+      overflow:hidden; display:flex; flex-direction:column; min-height: 320px;
+    }
+    .canvasCard .bar{
+      padding:10px 12px; border-bottom:1px solid var(--line);
+      display:flex; align-items:center; justify-content:space-between;
+      background:rgba(23,28,43,.75);
+    }
+    .canvasCard .bar b{font-size:12px;}
+    .canvasWrap{position:relative; flex:1; background:#0a0d16;}
+    .canvasWrap canvas{width:100%; height:100%; display:block;}
+    .thumbs{display:grid; grid-template-columns:repeat(3,1fr); gap:8px;}
+    .thumb{
+      border:1px solid var(--line); border-radius:12px; overflow:hidden;
+      background:var(--panel2); cursor:pointer; position:relative;
+    }
+    .thumb.selected{outline:2px solid var(--accent);}
+    .thumb canvas{width:100%; height:auto; display:block;}
+    .thumb .cap{position:absolute; left:8px; bottom:8px; font-size:11px; color:#dbe6ff; background:rgba(0,0,0,.35); padding:4px 6px; border-radius:8px;}
+    .chips{display:flex; flex-wrap:wrap; gap:8px;}
+    .chip{
+      border:1px solid var(--line); background:rgba(23,28,43,.7);
+      border-radius:999px; padding:6px 10px; font-size:12px;
+      display:flex; gap:8px; align-items:center; cursor:pointer;
+    }
+    .sw{width:16px; height:16px; border-radius:6px; border:1px solid rgba(255,255,255,.25);}
+    .grid2{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+    .divider{height:1px; background:var(--line); margin:10px 0;}
+    .ok{color:var(--good);} .warn{color:var(--warn);} .badTxt{color:var(--bad);}
+    .kbd{
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace;
+      font-size:11px; color:#cfe0ff; background:rgba(121,167,255,.12); border:1px solid rgba(121,167,255,.25);
+      padding:2px 6px; border-radius:6px; display:inline-block; margin:2px 0;
+    }
+    details{border:1px solid var(--line); border-radius:12px; padding:10px; background:rgba(23,28,43,.35);}
+    summary{cursor:pointer; color:#cfd7ef; font-size:12px;}
   </style>
 </head>
 <body>
-<header>
-  <div class="row">
-    <input id="file" type="file" accept="image/png,image/jpeg,image/webp" />
-    <button id="btnSplit" disabled>컷 자동 분리</button>
-    <button id="btnAnalyze" disabled>영역 분석(밑색 준비)</button>
-    <button id="btnClearAssign" disabled>현재 컷 라벨 초기화</button>
-  </div>
-  <span class="hint">
-    닫힌 선 위주일 때: 클릭으로 영역 라벨링 → 밑색 Flat 생성 → PNG/PSD 다운로드
-  </span>
-</header>
+<div class="app">
+  <!-- LEFT -->
+  <aside class="left">
+    <header><h1>컷 리스트</h1></header>
 
-<main>
-  <!-- Left: Cuts -->
-  <section class="panel">
-    <h3>컷 목록</h3>
-    <div class="content">
-      <div class="small">
-        1) 선화 PNG 업로드 → 2) 컷 자동 분리 → 3) 컷 선택 → 4) 영역 분석 → 5) 클릭 라벨링
-      </div>
-      <div class="sep"></div>
-      <div id="cutsInfo" class="small mono">업로드 대기</div>
-      <div class="sep"></div>
-      <div id="cutsList" class="list"></div>
-    </div>
-  </section>
-
-  <!-- Center: Viewer -->
-  <section class="panel">
-    <h3>뷰어 (클릭: 영역 라벨링)</h3>
-    <div class="content">
-      <div class="canvasWrap">
-        <canvas id="view"></canvas>
-        <div class="overlayUI">
-          <span class="k">단축키: 1 피부 / 2 머리 / 3 상의 / 4 하의 / 5 눈 / 6 배경</span>
-          <span class="k">모드: <b id="modeText">대기</b></span>
-          <span class="k">선 임계값: <b id="thrText">200</b></span>
-          <span class="k">처리 스케일: <b id="scaleText">1.0</b></span>
-        </div>
+    <div class="section">
+      <h2>1) 통짜 선화 업로드 → 자동 컷 분할</h2>
+      <div class="hint">
+        웹툰 1화 세로본(선화) 이미지 1장을 올리면 자동으로 컷을 분할합니다.<br/>
+        <span class="kbd">v4</span> 컷 생성 후 상/하단 흰 여백 자동 트림(가능한 경우).
       </div>
 
-      <div class="sep"></div>
       <div class="row">
-        <button id="btnTogglePreview" disabled>라인+밑색 미리보기 ON/OFF</button>
-        <button id="btnDownloadFlat" disabled>Flat PNG 다운로드</button>
-        <button id="btnDownloadPSD" disabled>PSD 다운로드(레이어 2개)</button>
+        <input id="longInput" type="file" accept="image/*"/>
       </div>
-      <div class="small warn" style="margin-top:8px;">
-        PSD 다운로드는 브라우저에서 라이브러리를 불러오며, 환경에 따라 느릴 수 있습니다.
-        작업용 MVP이므로 “밑색이 들어가는지” 검증이 목적입니다.
+
+      <div class="row">
+        <button id="btnSplit" class="primary">자동 컷 분할</button>
+        <button id="btnExportMeta">episode.meta.json</button>
       </div>
-      <div id="status" class="small mono" style="margin-top:8px;">-</div>
+
+      <div class="hint" id="splitStats">업로드 대기…</div>
+
+      <details style="margin-top:10px;">
+        <summary>고급(디버그) — 컷 분할 진단 보기</summary>
+        <div class="hint" id="splitDiag" style="margin-top:8px;">-</div>
+      </details>
     </div>
-  </section>
 
-  <!-- Right: Labels & Palette -->
-  <section class="panel">
-    <h3>라벨 & 임시 팔레트(밑색만)</h3>
-    <div class="content">
-      <div class="small">
-        팔레트가 아직 없으니 임시색으로 시작합니다. 나중에 JSON으로 교체 가능합니다.
-      </div>
-
-      <div class="sep"></div>
-
-      <div class="labelGrid" id="labels"></div>
-
-      <div class="sep"></div>
-
-      <div class="small mono">
-        현재 선택 라벨: <b id="currentLabel">Skin</b>
-        <span class="badge" id="currentKey">1</span>
-      </div>
-
-      <div class="sep"></div>
-
-      <div class="small">
-        전처리 설정(기본값 권장)
-      </div>
-      <div class="row" style="margin-top:6px;">
-        <label class="small mono">Threshold</label>
-        <input id="thr" type="range" min="80" max="245" value="200" />
-      </div>
-      <div class="row" style="margin-top:6px;">
-        <label class="small mono">Max Proc Width</label>
-        <input id="maxW" type="number" value="1200" style="width:90px; background:#0b0f14; border:1px solid #29415e; color:#e7eef7; border-radius:10px; padding:8px;" />
-      </div>
-
-      <div class="sep"></div>
-      <div class="small ok" id="readyHint">업로드 후 진행하세요.</div>
+    <div class="section">
+      <h2>2) 컷 선택</h2>
+      <div class="hint">썸네일 클릭 → 가운데 미리보기/채색/다운로드</div>
+      <div class="thumbs" id="thumbs"></div>
     </div>
-  </section>
-</main>
+  </aside>
 
-<!-- ag-psd (PSD 생성용) -->
-<script src="https://unpkg.com/ag-psd@16.4.2/dist/psd.min.js"></script>
+  <!-- MID -->
+  <main class="mid">
+    <div class="midTop">
+      <span class="pill" id="currentCutPill">선택된 컷: 없음</span>
+      <span class="pill">모드: 통짜 → 컷분할 → 캐릭터코드만 → 자동 밑색</span>
+      <span class="pill">룰: 얼굴→목 skin, 상의양옆 팔 skin</span>
+      <span class="pill" id="statusPill">대기</span>
+    </div>
+
+    <div class="stage">
+      <div class="canvasCard">
+        <div class="bar">
+          <b>선화 (현재 컷)</b>
+          <span class="hint" id="lineInfo">-</span>
+        </div>
+        <div class="canvasWrap"><canvas id="cvLine"></canvas></div>
+      </div>
+
+      <div class="canvasCard">
+        <div class="bar">
+          <b>밑색 결과 (auto flats)</b>
+          <div style="display:flex; gap:8px; align-items:center;">
+            <button id="btnRender" class="good">렌더</button>
+            <button id="btnDownloadCut">현재 컷 PNG</button>
+            <button id="btnDownloadAll" class="primary">전체 ZIP</button>
+          </div>
+        </div>
+        <div class="canvasWrap"><canvas id="cvOut"></canvas></div>
+      </div>
+
+      <div class="canvasCard">
+        <div class="bar">
+          <b>레퍼런스(기준 채색 컷)</b>
+          <span class="hint">스포이드로 팔레트 저장</span>
+        </div>
+        <div class="canvasWrap"><canvas id="cvRef"></canvas></div>
+      </div>
+
+      <div class="canvasCard">
+        <div class="bar">
+          <b>디버그</b>
+          <span class="hint">영역/그룹 + 얼굴/목/팔 표시</span>
+        </div>
+        <div class="canvasWrap"><canvas id="cvDbg"></canvas></div>
+      </div>
+    </div>
+  </main>
+
+  <!-- RIGHT -->
+  <aside class="right">
+    <header><h1>캐릭터 팔레트 / 컷 정보</h1></header>
+
+    <div class="section">
+      <h2>3) 기준 채색 이미지 업로드</h2>
+      <div class="row">
+        <input id="refInput" type="file" accept="image/*"/>
+      </div>
+      <div class="hint">
+        ① 캐릭터 선택 → ② 파트 버튼 선택 → ③ 레퍼런스 이미지 클릭 = 색 저장<br/>
+        <span class="kbd">추천</span> skin / hair / brow / eye_iris / eye_white / mouth / top / bottom / bg
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>4) 캐릭터 관리</h2>
+      <div class="row">
+        <input id="charName" type="text" placeholder="캐릭터 코드 (예: 좌1, 우1)"/>
+      </div>
+      <div class="row">
+        <button id="btnAddChar" class="primary">+ 캐릭터 추가</button>
+        <button id="btnExportPalette">palette.json</button>
+      </div>
+
+      <div class="row">
+        <label style="min-width:90px;">선택 캐릭터</label>
+        <select id="charSelect"></select>
+      </div>
+
+      <div class="hint" id="charHint">캐릭터를 추가하세요.</div>
+    </div>
+
+    <div class="section">
+      <h2>5) 팔레트 스포이드 (디테일)</h2>
+      <div class="chips" id="partButtons"></div>
+
+      <div class="row">
+        <label style="min-width:90px;">선택 파트</label>
+        <select id="partSelect"></select>
+      </div>
+
+      <div class="row">
+        <label style="min-width:90px;">tolerance</label>
+        <input id="tolInput" type="number" value="16" min="0" max="80"/>
+      </div>
+
+      <div class="chips" id="paletteChips"></div>
+
+      <div class="divider"></div>
+      <div class="hint">
+        <b>v4 상체 skin 규칙</b><br/>
+        - 얼굴 후보를 찾고, <b>얼굴 바로 아래 & 인접</b> 영역을 목(skin)으로 강제<br/>
+        - 상의(top) 후보를 찾고, <b>상의와 인접 & 좌/우로 튀어나간</b> 영역을 팔(skin)으로 강제<br/>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>6) 현재 컷 등장 캐릭터</h2>
+      <div class="hint">컷마다 등장 캐릭터만 체크하면, 후보 영역을 좌→우로 그룹핑해 적용합니다.</div>
+      <div id="cutCharChecklist" class="grid2"></div>
+      <div class="row">
+        <button id="btnSaveCutChars" class="primary">현재 컷 캐릭터 저장</button>
+      </div>
+      <div class="hint" id="cutCharHint">-</div>
+
+      <div class="divider"></div>
+      <div class="hint">
+        <b class="warn">주의</b>: 인물 1명 컷은 1명만 체크할수록 안정적입니다.
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>7) 로그</h2>
+      <div class="hint" id="renderHint">-</div>
+    </div>
+  </aside>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/file-saver@2.0.5/dist/FileSaver.min.js"></script>
 
 <script>
-(() => {
-  // ---------------------------
-  // State
-  // ---------------------------
-  const state = {
-    srcImage: null,
-    srcCanvas: document.createElement('canvas'),
-    cuts: [],            // {y0,y1, canvas, thumbCanvas}
-    selectedCut: -1,
-    // analysis
-    procScale: 1.0,
-    procW: 0,
-    procH: 0,
-    lineRGBA: null,      // Uint8ClampedArray (proc)
-    wall: null,          // Uint8Array (proc) 1=wall(ink)
-    regionId: null,      // Int32Array (proc) -1=unassigned
-    regionCount: 0,
-    regionLabel: new Map(), // regionId -> labelKey
-    flatRGBA: null,      // Uint8ClampedArray (proc RGBA)
-    previewOn: true,
-    // labels/palette
-    currentLabelKey: 'Skin',
-    keys: ['Skin','Hair','TopCloth','BottomCloth','Eye','Background'],
-    keyHot: {'1':'Skin','2':'Hair','3':'TopCloth','4':'BottomCloth','5':'Eye','6':'Background'},
-    palette: {
-      Skin: '#F2C9B4',
-      Hair: '#2E2A28',
-      TopCloth: '#3A6EA5',
-      BottomCloth: '#2F3E46',
-      Eye: '#6B4EFF',          // iris 느낌(밑색 단순화)
-      Background: '#E6E6E6'
-    }
-  };
+/** =========================
+ *  STATE
+ *  ========================= */
+const state = {
+  episodeId: "EP001",
+  longImg: null,
+  longCanvas: null,
+  cuts: {},
+  cutOrder: [],
+  selectedCutId: null,
 
-  // ---------------------------
-  // DOM
-  // ---------------------------
-  const $ = (id) => document.getElementById(id);
-  const file = $('file');
-  const btnSplit = $('btnSplit');
-  const btnAnalyze = $('btnAnalyze');
-  const btnClearAssign = $('btnClearAssign');
-  const cutsList = $('cutsList');
-  const cutsInfo = $('cutsInfo');
-  const view = $('view');
-  const status = $('status');
-  const btnTogglePreview = $('btnTogglePreview');
-  const btnDownloadFlat = $('btnDownloadFlat');
-  const btnDownloadPSD = $('btnDownloadPSD');
-  const labels = $('labels');
-  const currentLabel = $('currentLabel');
-  const currentKey = $('currentKey');
-  const thr = $('thr');
-  const thrText = $('thrText');
-  const maxW = $('maxW');
-  const modeText = $('modeText');
-  const scaleText = $('scaleText');
-  const readyHint = $('readyHint');
+  characters: {},
+  selectedChar: null,
 
-  const viewCtx = view.getContext('2d', { willReadFrequently: true });
+  refImg: null,
 
-  // ---------------------------
-  // Utils
-  // ---------------------------
-  function setStatus(msg) { status.textContent = msg; }
-  function clamp(v,min,max){ return Math.max(min, Math.min(max,v)); }
+  parts: [
+    { key:"bg", label:"배경" },
+    { key:"skin", label:"피부" },
+    { key:"hair", label:"머리" },
+    { key:"brow", label:"눈썹" },
+    { key:"eye_iris", label:"눈동자(홍채)" },
+    { key:"eye_white", label:"흰자" },
+    { key:"mouth", label:"입" },
+    { key:"top", label:"상의" },
+    { key:"bottom", label:"하의" }
+  ],
+  selectedPart: "skin",
+};
 
-  function hexToRgb(hex) {
-    const h = hex.replace('#','').trim();
-    const r = parseInt(h.slice(0,2),16);
-    const g = parseInt(h.slice(2,4),16);
-    const b = parseInt(h.slice(4,6),16);
-    return [r,g,b];
-  }
+/** =========================
+ *  DOM
+ *  ========================= */
+const longInput = document.getElementById("longInput");
+const btnSplit = document.getElementById("btnSplit");
+const splitStats = document.getElementById("splitStats");
+const splitDiag = document.getElementById("splitDiag");
 
-  function createCanvas(w,h) {
-    const c = document.createElement('canvas');
-    c.width = w; c.height = h;
-    return c;
-  }
+const thumbs = document.getElementById("thumbs");
+const currentCutPill = document.getElementById("currentCutPill");
+const statusPill = document.getElementById("statusPill");
+const lineInfo = document.getElementById("lineInfo");
+const renderHint = document.getElementById("renderHint");
 
-  function drawToFit(ctx, imgCanvas, outW, outH) {
-    ctx.clearRect(0,0,outW,outH);
-    ctx.drawImage(imgCanvas, 0,0, imgCanvas.width, imgCanvas.height, 0,0, outW, outH);
-  }
+const cvLine = document.getElementById("cvLine");
+const cvOut = document.getElementById("cvOut");
+const cvRef = document.getElementById("cvRef");
+const cvDbg = document.getElementById("cvDbg");
 
-  function computeRowInkRatio(imgData, y, w) {
-    // ink if pixel is "dark" (threshold)
-    const d = imgData.data;
-    const t = Number(thr.value);
-    let ink = 0;
-    for (let x=0; x<w; x++) {
-      const i = (y*w + x)*4;
-      const r = d[i], g = d[i+1], b = d[i+2];
-      const gray = (r*0.299 + g*0.587 + b*0.114);
-      if (gray < t) ink++;
-    }
-    return ink / w;
-  }
+const refInput = document.getElementById("refInput");
+const charName = document.getElementById("charName");
+const btnAddChar = document.getElementById("btnAddChar");
+const charSelect = document.getElementById("charSelect");
+const charHint = document.getElementById("charHint");
 
-  function splitCutsFromTallImage(canvas) {
-    const w = canvas.width, h = canvas.height;
-    const ctx = canvas.getContext('2d', { willReadFrequently: true });
-    const imgData = ctx.getImageData(0,0,w,h);
+const partButtons = document.getElementById("partButtons");
+const partSelect = document.getElementById("partSelect");
+const tolInput = document.getElementById("tolInput");
+const paletteChips = document.getElementById("paletteChips");
 
-    // Detect horizontal whitespace bands:
-    // A row is "blank" if ink ratio is below a very small threshold.
-    const blankThresh = 0.002;      // 0.2% ink
-    const minBand = Math.max(10, Math.floor(h * 0.01)); // minimum blank band height
-    const rows = new Uint8Array(h);
+const cutCharChecklist = document.getElementById("cutCharChecklist");
+const btnSaveCutChars = document.getElementById("btnSaveCutChars");
+const cutCharHint = document.getElementById("cutCharHint");
 
-    for (let y=0; y<h; y++) {
-      const ratio = computeRowInkRatio(imgData, y, w);
-      rows[y] = (ratio < blankThresh) ? 1 : 0;
-    }
+const btnExportPalette = document.getElementById("btnExportPalette");
+const btnExportMeta = document.getElementById("btnExportMeta");
 
-    // Find blank bands
-    const bands = [];
-    let y = 0;
-    while (y < h) {
-      if (rows[y] === 1) {
-        let y0 = y;
-        while (y < h && rows[y] === 1) y++;
-        let y1 = y; // [y0, y1)
-        if ((y1 - y0) >= minBand) bands.push({y0,y1});
-      } else {
-        y++;
-      }
-    }
+const btnRender = document.getElementById("btnRender");
+const btnDownloadCut = document.getElementById("btnDownloadCut");
+const btnDownloadAll = document.getElementById("btnDownloadAll");
 
-    // Convert blank bands into cut ranges between them
-    // We'll treat cuts as non-blank regions between wide blank bands.
-    const cuts = [];
-    let start = 0;
-    for (const b of bands) {
-      const end = b.y0;
-      if (end - start > minBand) cuts.push({y0:start, y1:end});
-      start = b.y1;
-    }
-    if (h - start > minBand) cuts.push({y0:start, y1:h});
-
-    // Clean cuts: remove those too small or mostly blank
-    const filtered = [];
-    for (const c of cuts) {
-      const ch = c.y1 - c.y0;
-      if (ch < 50) continue;
-      filtered.push(c);
-    }
-    return filtered;
-  }
-
-  function extractCutCanvas(srcCanvas, y0, y1) {
-    const w = srcCanvas.width;
-    const h = y1 - y0;
-    const c = createCanvas(w, h);
-    const ctx = c.getContext('2d');
-    ctx.drawImage(srcCanvas, 0,y0, w,h, 0,0, w,h);
-    return c;
-  }
-
-  function binarizeToWall(procCtx, w, h) {
-    // wall=1 for "ink" pixels (dark)
-    const img = procCtx.getImageData(0,0,w,h);
-    const d = img.data;
-    const t = Number(thr.value);
-    const wall = new Uint8Array(w*h);
-    for (let i=0, p=0; i<d.length; i+=4, p++) {
-      const r=d[i], g=d[i+1], b=d[i+2];
-      const gray = (r*0.299 + g*0.587 + b*0.114);
-      wall[p] = (gray < t) ? 1 : 0;
-    }
-    return {img, wall};
-  }
-
-  function morphClose(wall, w, h) {
-    // very small close: dilate(1) then erode(1) to fix 1px gaps.
-    // For MVP speed: optional, lightweight.
-    const dil = new Uint8Array(w*h);
-    const idx = (x,y)=> y*w+x;
-    for (let y=0;y<h;y++){
-      for (let x=0;x<w;x++){
-        let v = 0;
-        for (let dy=-1;dy<=1;dy++){
-          const yy=y+dy; if(yy<0||yy>=h) continue;
-          for (let dx=-1;dx<=1;dx++){
-            const xx=x+dx; if(xx<0||xx>=w) continue;
-            if (wall[idx(xx,yy)]) { v=1; dy=2; break; }
-          }
-        }
-        dil[idx(x,y)] = v;
-      }
-    }
-    const ero = new Uint8Array(w*h);
-    for (let y=0;y<h;y++){
-      for (let x=0;x<w;x++){
-        let v = 1;
-        for (let dy=-1;dy<=1;dy++){
-          const yy=y+dy; if(yy<0||yy>=h) continue;
-          for (let dx=-1;dx<=1;dx++){
-            const xx=x+dx; if(xx<0||xx>=w) continue;
-            if (!dil[idx(xx,yy)]) { v=0; dy=2; break; }
-          }
-        }
-        ero[idx(x,y)] = v;
-      }
-    }
-    return ero;
-  }
-
-  function labelRegions(wall, w, h) {
-    // Regions are non-wall pixels connected 4-neighborhood.
-    const regionId = new Int32Array(w*h);
-    regionId.fill(-1);
-
-    const qx = new Int32Array(w*h);
-    const qy = new Int32Array(w*h);
-
-    let region = 0;
-    const idx = (x,y)=> y*w+x;
-
-    for (let y=0;y<h;y++){
-      for (let x=0;x<w;x++){
-        const p = idx(x,y);
-        if (wall[p]===1) continue;
-        if (regionId[p]!==-1) continue;
-
-        // flood fill
-        let head=0, tail=0;
-        qx[tail]=x; qy[tail]=y; tail++;
-        regionId[p]=region;
-
-        while(head<tail){
-          const cx=qx[head], cy=qy[head]; head++;
-          // 4 neighbors
-          const nb = [
-            [cx-1,cy],[cx+1,cy],[cx,cy-1],[cx,cy+1]
-          ];
-          for (const [nx,ny] of nb){
-            if(nx<0||nx>=w||ny<0||ny>=h) continue;
-            const pp = idx(nx,ny);
-            if (wall[pp]===1) continue;
-            if (regionId[pp]!==-1) continue;
-            regionId[pp]=region;
-            qx[tail]=nx; qy[tail]=ny; tail++;
-          }
-        }
-
-        region++;
-      }
-    }
-    return {regionId, regionCount: region};
-  }
-
-  function buildFlatRGBA(regionId, wall, w, h, regionLabel, palette) {
-    const out = new Uint8ClampedArray(w*h*4);
-    // Default: transparent
-    for (let i=0;i<out.length;i+=4) out[i+3]=0;
-
-    const rgbCache = new Map();
-    function keyRgb(k){
-      if (!rgbCache.has(k)) rgbCache.set(k, hexToRgb(palette[k]));
-      return rgbCache.get(k);
-    }
-
-    for (let y=0;y<h;y++){
-      for (let x=0;x<w;x++){
-        const p = y*w+x;
-        if (wall[p]===1) continue;
-        const rid = regionId[p];
-        const lab = regionLabel.get(rid);
-        if (!lab) continue;
-        const [r,g,b]=keyRgb(lab);
-        const i = p*4;
-        out[i]=r; out[i+1]=g; out[i+2]=b; out[i+3]=255;
-      }
-    }
-    return out;
-  }
-
-  function drawViewer() {
-    const ci = state.selectedCut;
-    if (ci < 0) return;
-
-    const cutCanvas = state.cuts[ci].canvas;
-    const showPreview = state.previewOn && state.flatRGBA && state.procW && state.procH;
-
-    // Base: white
-    view.width = cutCanvas.width;
-    view.height = cutCanvas.height;
-    viewCtx.clearRect(0,0,view.width,view.height);
-    viewCtx.fillStyle = '#ffffff';
-    viewCtx.fillRect(0,0,view.width,view.height);
-
-    // If preview mode: draw flat (scaled back to original) then line
-    if (showPreview) {
-      // Render flatRGBA onto temp canvas at proc size
-      const tmp = createCanvas(state.procW, state.procH);
-      const tctx = tmp.getContext('2d');
-      const img = tctx.createImageData(state.procW, state.procH);
-      img.data.set(state.flatRGBA);
-      tctx.putImageData(img, 0,0);
-
-      // scale to original cut size (nearest-ish)
-      viewCtx.imageSmoothingEnabled = false; // keep crisp
-      viewCtx.drawImage(tmp, 0,0, state.procW, state.procH, 0,0, view.width, view.height);
-    }
-
-    // Draw original line art
-    viewCtx.imageSmoothingEnabled = true;
-    viewCtx.drawImage(cutCanvas, 0,0);
-
-    modeText.textContent = showPreview ? '미리보기' : '라인만';
-  }
-
-  function refreshButtons() {
-    const hasImage = !!state.srcImage;
-    btnSplit.disabled = !hasImage;
-    const hasCuts = state.cuts.length > 0;
-    btnAnalyze.disabled = !(hasCuts && state.selectedCut >= 0);
-    btnClearAssign.disabled = !(hasCuts && state.selectedCut >= 0);
-    btnTogglePreview.disabled = !(hasCuts && state.selectedCut >= 0 && state.flatRGBA);
-    btnDownloadFlat.disabled = !(hasCuts && state.selectedCut >= 0 && state.flatRGBA);
-    btnDownloadPSD.disabled = !(hasCuts && state.selectedCut >= 0 && state.flatRGBA && window.agPsd);
-  }
-
-  function buildLabelsUI() {
-    labels.innerHTML = '';
-    state.keys.forEach((k, idx) => {
-      const btn = document.createElement('button');
-      btn.className = 'labelBtn';
-      btn.type = 'button';
-      btn.dataset.key = k;
-
-      const left = document.createElement('span');
-      left.textContent = k;
-
-      const sw = document.createElement('span');
-      sw.className = 'swatch';
-      sw.style.background = state.palette[k];
-
-      const color = document.createElement('input');
-      color.type = 'color';
-      color.value = state.palette[k];
-      color.title = '밑색 변경';
-
-      const hot = document.createElement('span');
-      hot.className = 'badge';
-      hot.textContent = String(idx+1);
-
-      btn.append(left, sw, color, hot);
-
-      btn.addEventListener('click', () => setCurrentLabel(k, String(idx+1)));
-
-      color.addEventListener('input', (e) => {
-        state.palette[k] = e.target.value.toUpperCase();
-        sw.style.background = state.palette[k];
-        if (state.flatRGBA) {
-          // rebuild flat quickly with new palette
-          state.flatRGBA = buildFlatRGBA(state.regionId, state.wall, state.procW, state.procH, state.regionLabel, state.palette);
-          drawViewer();
-        }
-      });
-
-      labels.appendChild(btn);
-    });
-    setCurrentLabel(state.currentLabelKey, '1');
-  }
-
-  function setCurrentLabel(k, hotKey) {
-    state.currentLabelKey = k;
-    currentLabel.textContent = k;
-    currentKey.textContent = hotKey ?? '';
-  }
-
-  function downloadBlob(blob, filename) {
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    setTimeout(()=>URL.revokeObjectURL(url), 4000);
-  }
-
-  function canvasToBlob(c, type='image/png', quality=0.92) {
-    return new Promise((resolve) => c.toBlob(resolve, type, quality));
-  }
-
-  function getProcCanvasForCut(cutCanvas) {
-    // Scale down for faster processing, keep nearest sampling (AA OFF style)
-    const maxWidth = clamp(parseInt(maxW.value || '1200',10), 300, 4000);
-    const scale = Math.min(1, maxWidth / cutCanvas.width);
-    const w = Math.max(1, Math.floor(cutCanvas.width * scale));
-    const h = Math.max(1, Math.floor(cutCanvas.height * scale));
-    const c = createCanvas(w,h);
-    const ctx = c.getContext('2d', { willReadFrequently:true });
-    ctx.imageSmoothingEnabled = false;
-    ctx.drawImage(cutCanvas, 0,0, cutCanvas.width, cutCanvas.height, 0,0, w,h);
-    return {canvas:c, ctx, w, h, scale};
-  }
-
-  // ---------------------------
-  // Events
-  // ---------------------------
-  file.addEventListener('change', async () => {
-    const f = file.files?.[0];
-    if (!f) return;
-    const url = URL.createObjectURL(f);
+/** =========================
+ *  HELPERS
+ *  ========================= */
+function setStatus(txt){ statusPill.textContent = txt; }
+function fileToImage(file){
+  return new Promise((resolve,reject)=>{
+    const url = URL.createObjectURL(file);
     const img = new Image();
-    img.onload = () => {
-      state.srcImage = img;
-      // draw to srcCanvas
-      state.srcCanvas.width = img.width;
-      state.srcCanvas.height = img.height;
-      const ctx = state.srcCanvas.getContext('2d');
-      ctx.drawImage(img, 0,0);
-      cutsInfo.textContent = `원본: ${img.width}×${img.height}px`;
-      readyHint.textContent = '컷 자동 분리를 눌러주세요.';
-      setStatus('이미지 로드 완료. 컷 자동 분리 가능.');
-      btnSplit.disabled = false;
-
-      // reset previous
-      state.cuts = [];
-      state.selectedCut = -1;
-      cutsList.innerHTML = '';
-      state.flatRGBA = null;
-      refreshButtons();
-      URL.revokeObjectURL(url);
-    };
-    img.onerror = () => {
-      setStatus('이미지 로드 실패');
-      URL.revokeObjectURL(url);
-    };
+    img.onload = ()=>resolve(img);
+    img.onerror = reject;
     img.src = url;
   });
+}
+function rgbToHex(r,g,b){
+  const to = (v)=>v.toString(16).padStart(2,"0");
+  return `#${to(r)}${to(g)}${to(b)}`;
+}
+function hexToRgb(hex){
+  const h = hex.replace("#","").trim();
+  return { r: parseInt(h.slice(0,2),16), g: parseInt(h.slice(2,4),16), b: parseInt(h.slice(4,6),16) };
+}
+function downloadJson(obj, filename){
+  const blob = new Blob([JSON.stringify(obj,null,2)], {type:"application/json"});
+  saveAs(blob, filename);
+}
+function drawContain(ctx, img, canvas){
+  const cw = canvas.width, ch = canvas.height;
+  const iw = img.width, ih = img.height;
+  const s = Math.min(cw/iw, ch/ih);
+  const w = iw*s, h = ih*s;
+  const x = (cw-w)/2, y=(ch-h)/2;
+  ctx.clearRect(0,0,cw,ch);
+  ctx.drawImage(img, x,y,w,h);
+  return {x,y,w,h, scale:s, iw, ih};
+}
+function canvasClickToImageXY(evt, canvas, draw){
+  const rect = canvas.getBoundingClientRect();
+  const mx = (evt.clientX - rect.left) * (canvas.width / rect.width);
+  const my = (evt.clientY - rect.top) * (canvas.height / rect.height);
+  const {x,y,w,h, iw, ih} = draw;
+  if(mx < x || my < y || mx > x+w || my > y+h) return null;
+  const nx = (mx - x) / w, ny = (my - y) / h;
+  return { ix: Math.floor(nx*iw), iy: Math.floor(ny*ih) };
+}
+function ensureChar(code){
+  if(!state.characters[code]){
+    state.characters[code] = { displayName: code, palette: {} };
+  }
+}
+function percentile(arr, p){
+  if(arr.length===0) return 0;
+  const a = [...arr].sort((x,y)=>x-y);
+  const idx = Math.min(a.length-1, Math.max(0, Math.floor((a.length-1)*p)));
+  return a[idx];
+}
+function movingAverage(src, win){
+  const n = src.length;
+  const dst = new Float32Array(n);
+  const w = Math.max(1, win|0);
+  let sum = 0;
+  let q = [];
+  for(let i=0;i<n;i++){
+    sum += src[i];
+    q.push(src[i]);
+    if(q.length > w) sum -= q.shift();
+    dst[i] = sum / q.length;
+  }
+  return dst;
+}
 
-  btnSplit.addEventListener('click', () => {
-    if (!state.srcImage) return;
-    setStatus('컷 자동 분리 중...');
-    const ranges = splitCutsFromTallImage(state.srcCanvas);
+/** === small util === */
+function clamp(v,a,b){ return Math.max(a, Math.min(b,v)); }
+function overlap1D(a0,a1,b0,b1){
+  const lo = Math.max(a0,b0);
+  const hi = Math.min(a1,b1);
+  return Math.max(0, hi-lo);
+}
 
-    state.cuts = ranges.map((r, idx) => {
-      const c = extractCutCanvas(state.srcCanvas, r.y0, r.y1);
-      const t = createCanvas(260, Math.round(260 * (c.height / c.width)));
-      const tctx = t.getContext('2d');
-      tctx.fillStyle = '#fff'; tctx.fillRect(0,0,t.width,t.height);
-      tctx.drawImage(c, 0,0, c.width,c.height, 0,0, t.width,t.height);
-      return { y0:r.y0, y1:r.y1, canvas:c, thumb:t };
-    });
+/** =========================
+ *  CUT TRIM (problem1)
+ *  ========================= */
+function trimVerticalWhitespace(srcCanvas){
+  const W = srcCanvas.width, H = srcCanvas.height;
+  const ctx = srcCanvas.getContext("2d");
+  const img = ctx.getImageData(0,0,W,H).data;
 
-    cutsList.innerHTML = '';
-    state.cuts.forEach((cut, idx) => {
-      const wrap = document.createElement('div');
-      wrap.className = 'thumb';
-      const c = document.createElement('canvas');
-      c.width = cut.thumb.width;
-      c.height = cut.thumb.height;
-      c.getContext('2d').drawImage(cut.thumb, 0,0);
-      wrap.appendChild(c);
+  const brightRow = (y)=>{
+    let bright=0, valid=0;
+    for(let x=0;x<W;x++){
+      const i=(y*W+x)*4;
+      const a=img[i+3]; if(a===0) continue;
+      valid++;
+      const lum=(img[i]+img[i+1]+img[i+2])/3;
+      if(lum>248) bright++;
+    }
+    if(valid===0) return true;
+    return (bright/valid) > 0.985;
+  };
 
-      const meta = document.createElement('div');
-      meta.className = 'small mono';
-      meta.style.padding = '6px 8px';
-      meta.textContent = `cut_${String(idx+1).padStart(3,'0')}  (${cut.canvas.width}×${cut.canvas.height})`;
-      wrap.appendChild(meta);
+  const minBand = Math.max(10, Math.floor(H*0.01));
 
-      wrap.addEventListener('click', () => selectCut(idx));
-      cutsList.appendChild(wrap);
-    });
-
-    cutsInfo.textContent = `컷 ${state.cuts.length}개 감지`;
-    readyHint.textContent = '컷을 선택한 뒤 “영역 분석”을 누르세요.';
-    setStatus(`컷 ${state.cuts.length}개 분리 완료. 컷 선택 필요.`);
-    if (state.cuts.length > 0) selectCut(0);
-    refreshButtons();
-  });
-
-  function selectCut(idx) {
-    state.selectedCut = idx;
-    // UI highlight
-    [...cutsList.children].forEach((el, i) => el.classList.toggle('selected', i===idx));
-
-    // reset analysis for this cut
-    state.regionLabel = new Map();
-    state.flatRGBA = null;
-    state.regionId = null;
-    state.wall = null;
-    state.regionCount = 0;
-
-    // draw viewer (line only)
-    drawViewer();
-
-    btnAnalyze.disabled = false;
-    btnClearAssign.disabled = false;
-    btnTogglePreview.disabled = true;
-    btnDownloadFlat.disabled = true;
-    btnDownloadPSD.disabled = true;
-
-    setStatus(`선택: cut_${String(idx+1).padStart(3,'0')} (영역 분석 필요)`);
+  let top=0;
+  while(top<H){
+    let ok=true;
+    for(let k=0;k<minBand;k++){
+      if(top+k>=H) break;
+      if(!brightRow(top+k)){ ok=false; break; }
+    }
+    if(ok) top+=minBand;
+    else break;
   }
 
-  btnAnalyze.addEventListener('click', () => {
-    const ci = state.selectedCut;
-    if (ci < 0) return;
-
-    const cutCanvas = state.cuts[ci].canvas;
-    setStatus('영역 분석 중(이진화→끊김보정→라벨링)...');
-
-    // prepare processing canvas (scale down if needed)
-    const {canvas:pc, ctx:pctx, w, h, scale} = getProcCanvasForCut(cutCanvas);
-    state.procScale = scale;
-    state.procW = w;
-    state.procH = h;
-    scaleText.textContent = scale.toFixed(3);
-
-    // binarize
-    const {img, wall:wall0} = binarizeToWall(pctx, w, h);
-    // small close to fix micro gaps
-    const wall = morphClose(wall0, w, h);
-
-    // label regions
-    const {regionId, regionCount} = labelRegions(wall, w, h);
-
-    state.lineRGBA = img.data; // for potential debug
-    state.wall = wall;
-    state.regionId = regionId;
-    state.regionCount = regionCount;
-    state.regionLabel = new Map();
-    state.flatRGBA = buildFlatRGBA(regionId, wall, w, h, state.regionLabel, state.palette);
-
-    thrText.textContent = String(thr.value);
-    setStatus(`영역 분석 완료. region=${regionCount}개. 클릭으로 라벨링 시작.`);
-    readyHint.textContent = '클릭으로 영역을 칠하세요. 단축키 1~6로 라벨 선택.';
-
-    btnTogglePreview.disabled = false;
-    btnDownloadFlat.disabled = false;
-    btnDownloadPSD.disabled = false;
-
-    state.previewOn = true;
-    drawViewer();
-    refreshButtons();
-  });
-
-  btnClearAssign.addEventListener('click', () => {
-    state.regionLabel = new Map();
-    if (state.regionId && state.wall) {
-      state.flatRGBA = buildFlatRGBA(state.regionId, state.wall, state.procW, state.procH, state.regionLabel, state.palette);
-      drawViewer();
-      setStatus('현재 컷 라벨 초기화 완료.');
-      refreshButtons();
+  let bottom=H-1;
+  while(bottom>=0){
+    let ok=true;
+    for(let k=0;k<minBand;k++){
+      if(bottom-k<0) break;
+      if(!brightRow(bottom-k)){ ok=false; break; }
     }
-  });
+    if(ok) bottom-=minBand;
+    else break;
+  }
 
-  btnTogglePreview.addEventListener('click', () => {
-    state.previewOn = !state.previewOn;
-    drawViewer();
-  });
+  top = clamp(top,0,H-1);
+  bottom = clamp(bottom,top,H-1);
+  const newH = (bottom-top+1);
 
-  thr.addEventListener('input', () => {
-    thrText.textContent = String(thr.value);
-  });
+  const out = document.createElement("canvas");
+  out.width = W;
+  out.height = newH;
+  out.getContext("2d").drawImage(srcCanvas, 0, top, W, newH, 0, 0, W, newH);
+  return out;
+}
 
-  window.addEventListener('keydown', (e) => {
-    const k = e.key;
-    if (state.keyHot[k]) {
-      const label = state.keyHot[k];
-      setCurrentLabel(label, k);
+/** =========================
+ *  1D KMEANS (problem3 group mixing)
+ *  ========================= */
+function kmeans1D(values, K, iters=12){
+  const v = values.slice();
+  if(v.length===0) return {centers:[], labels:[]};
+  v.sort((a,b)=>a-b);
+
+  const centers = [];
+  for(let k=0;k<K;k++){
+    const idx = Math.floor((v.length-1) * (k/(K-1 || 1)));
+    centers.push(v[idx]);
+  }
+
+  const labels = new Array(values.length).fill(0);
+
+  for(let it=0; it<iters; it++){
+    for(let i=0;i<values.length;i++){
+      let best=0, bestD=1e9;
+      for(let k=0;k<K;k++){
+        const d=Math.abs(values[i]-centers[k]);
+        if(d<bestD){ bestD=d; best=k; }
+      }
+      labels[i]=best;
     }
-  });
+    const sum=new Array(K).fill(0);
+    const cnt=new Array(K).fill(0);
+    for(let i=0;i<values.length;i++){
+      const k=labels[i];
+      sum[k]+=values[i];
+      cnt[k]+=1;
+    }
+    for(let k=0;k<K;k++){
+      if(cnt[k]>0) centers[k]=sum[k]/cnt[k];
+    }
+  }
+  return {centers, labels};
+}
 
-  view.addEventListener('click', (e) => {
-    if (!state.regionId || state.selectedCut < 0) return;
+/** =========================
+ *  PALETTE / PARTS UI
+ *  ========================= */
+function renderPartsUI(){
+  partButtons.innerHTML = "";
+  partSelect.innerHTML = "";
+  for(const p of state.parts){
+    const btn = document.createElement("button");
+    btn.textContent = p.label;
+    btn.className = (state.selectedPart === p.key) ? "primary" : "";
+    btn.onclick = ()=>{ state.selectedPart = p.key; renderPartsUI(); renderPaletteChips(); };
+    partButtons.appendChild(btn);
 
-    // map click to cut pixel coords
-    const rect = view.getBoundingClientRect();
-    const x = Math.floor((e.clientX - rect.left) * (view.width / rect.width));
-    const y = Math.floor((e.clientY - rect.top) * (view.height / rect.height));
+    const opt = document.createElement("option");
+    opt.value = p.key; opt.textContent = `${p.label} (${p.key})`;
+    partSelect.appendChild(opt);
+  }
+  partSelect.value = state.selectedPart;
+}
+partSelect.addEventListener("change", ()=>{
+  state.selectedPart = partSelect.value;
+  renderPartsUI();
+  renderPaletteChips();
+});
 
-    // map to processing coords
-    const px = Math.floor(x * state.procScale);
-    const py = Math.floor(y * state.procScale);
-    const w = state.procW, h = state.procH;
-    if (px<0 || py<0 || px>=w || py>=h) return;
+function refreshCharSelect(){
+  const codes = Object.keys(state.characters);
+  charSelect.innerHTML = "";
+  if(codes.length === 0){
+    const o = document.createElement("option");
+    o.value=""; o.textContent="(없음)";
+    charSelect.appendChild(o);
+    state.selectedChar = null;
+    charHint.textContent = "캐릭터를 추가하세요. 예: 좌1, 우1";
+    renderPaletteChips();
+    refreshCutCharChecklist();
+    return;
+  }
+  for(const code of codes){
+    const opt = document.createElement("option");
+    opt.value = code; opt.textContent = code;
+    charSelect.appendChild(opt);
+  }
+  if(!state.selectedChar || !state.characters[state.selectedChar]) state.selectedChar = codes[0];
+  charSelect.value = state.selectedChar;
+  charHint.innerHTML = `선택 캐릭터: <b class="ok">${state.selectedChar}</b>`;
+  renderPaletteChips();
+  refreshCutCharChecklist();
+}
+charSelect.addEventListener("change", ()=>{
+  state.selectedChar = charSelect.value || null;
+  refreshCharSelect();
+});
+btnAddChar.addEventListener("click", ()=>{
+  const code = (charName.value || "").trim();
+  if(!code) return alert("캐릭터 코드를 입력하세요. 예: 좌1, 우1");
+  ensureChar(code);
+  state.selectedChar = code;
+  charName.value="";
+  refreshCharSelect();
+});
 
-    const p = py*w + px;
-    if (state.wall[p] === 1) {
-      setStatus('클릭 위치가 선(벽)입니다. 내부 영역을 클릭하세요.');
-      return;
+function renderPaletteChips(){
+  paletteChips.innerHTML = "";
+  if(!state.selectedChar) return;
+
+  const ch = state.characters[state.selectedChar];
+  const keys = Object.keys(ch.palette);
+  if(keys.length === 0){
+    const div = document.createElement("div");
+    div.className="hint";
+    div.textContent="팔레트가 없습니다. 파트 선택 후 레퍼런스 이미지에서 클릭하세요.";
+    paletteChips.appendChild(div);
+    return;
+  }
+
+  const order = state.parts.map(p=>p.key);
+  keys.sort((a,b)=> order.indexOf(a) - order.indexOf(b));
+
+  for(const partKey of keys){
+    const entry = ch.palette[partKey];
+    const pMeta = state.parts.find(p=>p.key===partKey);
+    const label = pMeta ? pMeta.label : partKey;
+
+    const chip = document.createElement("div");
+    chip.className="chip";
+    const sw = document.createElement("div");
+    sw.className="sw";
+    sw.style.background = entry.hex;
+
+    const txt = document.createElement("div");
+    txt.innerHTML = `<div><b>${label}</b> <span class="hint">(${partKey})</span></div>
+                     <div class="hint">${entry.hex} / tol ${entry.tol}</div>`;
+    chip.appendChild(sw);
+    chip.appendChild(txt);
+
+    chip.onclick = ()=>{
+      state.selectedPart = partKey;
+      renderPartsUI();
+      partSelect.value = partKey;
+      tolInput.value = String(entry.tol ?? 16);
+    };
+    paletteChips.appendChild(chip);
+  }
+}
+
+/** =========================
+ *  REFERENCE EYEDROPPER
+ *  ========================= */
+let refDraw = null;
+refInput.addEventListener("change", async (e)=>{
+  const f = e.target.files?.[0];
+  if(!f) return;
+  setStatus("레퍼런스 로딩…");
+  const img = await fileToImage(f);
+  state.refImg = img;
+
+  cvRef.width = 900; cvRef.height = 600;
+  const ctx = cvRef.getContext("2d");
+  refDraw = drawContain(ctx, img, cvRef);
+  setStatus("레퍼런스 OK");
+});
+
+cvRef.addEventListener("click", (evt)=>{
+  if(!state.refImg || !refDraw) return alert("레퍼런스 이미지를 먼저 업로드하세요.");
+  if(!state.selectedChar) return alert("캐릭터를 먼저 추가/선택하세요.");
+
+  const pos = canvasClickToImageXY(evt, cvRef, refDraw);
+  if(!pos) return;
+
+  const off = document.createElement("canvas");
+  off.width = state.refImg.width;
+  off.height = state.refImg.height;
+  const octx = off.getContext("2d");
+  octx.drawImage(state.refImg, 0, 0);
+  const pix = octx.getImageData(pos.ix, pos.iy, 1, 1).data;
+  const hex = rgbToHex(pix[0],pix[1],pix[2]);
+
+  const tol = parseInt((tolInput.value||"16").toString(),10);
+  ensureChar(state.selectedChar);
+  state.characters[state.selectedChar].palette[state.selectedPart] = { hex, tol: isFinite(tol)? tol : 16 };
+
+  renderPaletteChips();
+});
+
+/** =========================
+ *  UPLOAD LONG IMAGE
+ *  ========================= */
+longInput.addEventListener("change", async (e)=>{
+  const f = e.target.files?.[0];
+  if(!f) return;
+  setStatus("선화 로딩…");
+  state.longImg = await fileToImage(f);
+
+  const off = document.createElement("canvas");
+  off.width = state.longImg.width;
+  off.height = state.longImg.height;
+  const ctx = off.getContext("2d");
+  ctx.drawImage(state.longImg, 0, 0);
+  state.longCanvas = off;
+
+  splitStats.innerHTML = `업로드됨: <b class="ok">${state.longImg.width}×${state.longImg.height}</b> → "자동 컷 분할" 클릭`;
+  setStatus("선화 OK");
+});
+
+/** =========================
+ *  AUTO SPLIT (Adaptive + no UI options)
+ *  ========================= */
+btnSplit.addEventListener("click", async ()=>{
+  if(!state.longCanvas) return alert("통짜 선화 이미지를 먼저 업로드하세요.");
+  setStatus("컷 분할 중…");
+
+  const W = state.longCanvas.width;
+  const H = state.longCanvas.height;
+
+  const targetW = 900;
+  const scale = Math.min(1, targetW / W);
+  const w = Math.max(200, Math.floor(W * scale));
+  const h = Math.max(200, Math.floor(H * scale));
+
+  const ds = document.createElement("canvas");
+  ds.width = w; ds.height = h;
+  const dctx = ds.getContext("2d");
+  dctx.drawImage(state.longCanvas, 0, 0, w, h);
+
+  const img = dctx.getImageData(0,0,w,h).data;
+
+  const darkRatio = new Float32Array(h);
+  const brightRatio = new Float32Array(h);
+
+  for(let y=0;y<h;y++){
+    let dark=0, bright=0, valid=0;
+    for(let x=0;x<w;x++){
+      const i = (y*w + x)*4;
+      const a = img[i+3];
+      if(a===0) continue;
+      valid++;
+      const r=img[i], g=img[i+1], b=img[i+2];
+      const lum = (r+g+b)/3;
+      if(lum < 235) dark++;
+      if(lum > 248) bright++;
+    }
+    const denom = Math.max(1, valid);
+    darkRatio[y] = dark / denom;
+    brightRatio[y] = bright / denom;
+  }
+
+  const win = Math.max(5, Math.floor(h * 0.004));
+  const darkS = movingAverage(darkRatio, win);
+  const brightS = movingAverage(brightRatio, win);
+
+  const p10 = percentile(Array.from(darkS), 0.10);
+  const p25 = percentile(Array.from(darkS), 0.25);
+  const darkThr = Math.min(0.04, Math.max(p10 + 0.008, (p25*0.75)));
+  const brightThr = 0.70;
+
+  const minGap = Math.max(18, Math.floor(h * 0.012));
+  const minCut = Math.max(90, Math.floor(h * 0.060));
+
+  const blank = new Uint8Array(h);
+  for(let y=0;y<h;y++){
+    blank[y] = (darkS[y] <= darkThr && brightS[y] >= brightThr) ? 1 : 0;
+  }
+
+  const gaps = [];
+  let y=0;
+  while(y<h){
+    if(blank[y]===1){
+      const y0=y;
+      while(y<h && blank[y]===1) y++;
+      const y1=y-1;
+      if((y1-y0+1) >= minGap) gaps.push({y0,y1});
+    }else y++;
+  }
+
+  const bounds = [];
+  let curStart = 0;
+  for(const g of gaps){
+    const end = g.y0;
+    if(end - curStart >= minCut){
+      bounds.push({y0:curStart, y1:end});
+    }
+    curStart = g.y1 + 1;
+  }
+  if(h - curStart >= minCut){
+    bounds.push({y0:curStart, y1:h});
+  }
+
+  if(bounds.length <= 1){
+    const fallbackBlank = new Uint8Array(h);
+    const fbDarkThr = Math.min(0.06, Math.max(p10 + 0.012, p25));
+    const fbMinGap = Math.max(minGap, Math.floor(h * 0.018));
+    for(let yy=0;yy<h;yy++){
+      fallbackBlank[yy] = (darkS[yy] <= fbDarkThr) ? 1 : 0;
+    }
+    const fbGaps = [];
+    let yy=0;
+    while(yy<h){
+      if(fallbackBlank[yy]===1){
+        const a0=yy;
+        while(yy<h && fallbackBlank[yy]===1) yy++;
+        const a1=yy-1;
+        if((a1-a0+1) >= fbMinGap) fbGaps.push({y0:a0,y1:a1});
+      }else yy++;
     }
 
-    const rid = state.regionId[p];
-    if (rid < 0) return;
+    const fbBounds = [];
+    let s0=0;
+    for(const g of fbGaps){
+      const end=g.y0;
+      if(end - s0 >= minCut) fbBounds.push({y0:s0,y1:end});
+      s0 = g.y1+1;
+    }
+    if(h - s0 >= minCut) fbBounds.push({y0:s0,y1:h});
 
-    state.regionLabel.set(rid, state.currentLabelKey);
-    state.flatRGBA = buildFlatRGBA(state.regionId, state.wall, w, h, state.regionLabel, state.palette);
-    drawViewer();
-    setStatus(`region ${rid} → ${state.currentLabelKey} 적용`);
-    refreshButtons();
+    if(fbBounds.length > bounds.length){
+      bounds.length = 0;
+      bounds.push(...fbBounds);
+    }
+  }
+
+  state.cuts = {};
+  state.cutOrder = [];
+
+  const cutInfos = bounds.map((b, idx)=>{
+    const oy0 = Math.max(0, Math.floor(b.y0 / scale));
+    const oy1 = Math.min(H, Math.floor(b.y1 / scale));
+    return { cutId: `CUT-${String(idx+1).padStart(3,"0")}`, y0: oy0, y1: oy1 };
   });
 
-  btnDownloadFlat.addEventListener('click', async () => {
-    if (!state.flatRGBA || state.selectedCut < 0) return;
-    const ci = state.selectedCut;
+  for(const c of cutInfos){
+    const ch = c.y1 - c.y0;
+    if(ch < 20) continue;
+    let crop = document.createElement("canvas");
+    crop.width = W;
+    crop.height = ch;
+    const cctx = crop.getContext("2d");
+    cctx.drawImage(state.longCanvas, 0, c.y0, W, ch, 0, 0, W, ch);
 
-    // export at processing resolution (빠른 테스트 목적)
-    const out = createCanvas(state.procW, state.procH);
-    const octx = out.getContext('2d');
-    const img = octx.createImageData(state.procW, state.procH);
-    img.data.set(state.flatRGBA);
-    octx.putImageData(img, 0,0);
+    // ✅ v4: 트림 적용(가능하면 여백 제거)
+    crop = trimVerticalWhitespace(crop);
 
-    const blob = await canvasToBlob(out, 'image/png');
-    downloadBlob(blob, `cut_${String(ci+1).padStart(3,'0')}_flat.png`);
+    state.cuts[c.cutId] = { ...c, cropCanvas: crop, cutChars: [], renderCache: null };
+    state.cutOrder.push(c.cutId);
+  }
+
+  splitStats.innerHTML = `분할 완료: <b class="ok">${state.cutOrder.length}컷</b> (Adaptive + Trim)`;
+  splitDiag.innerHTML =
+    `분석 스케일: ${w}×${h} (scale=${scale.toFixed(3)})<br/>`+
+    `darkThr=${darkThr.toFixed(4)}, brightThr=${brightThr.toFixed(2)}, minGap=${minGap}px, minCut=${minCut}px<br/>`+
+    `gap 후보: ${gaps.length}개 / bound: ${bounds.length}개<br/>`;
+
+  await renderThumbnails();
+  if(state.cutOrder.length) selectCut(state.cutOrder[0]);
+
+  setStatus("컷 분할 OK");
+});
+
+/** =========================
+ *  THUMBNAILS
+ *  ========================= */
+async function renderThumbnails(){
+  thumbs.innerHTML = "";
+  for(const cutId of state.cutOrder){
+    const cut = state.cuts[cutId];
+    const card = document.createElement("div");
+    card.className="thumb";
+    card.onclick = ()=>selectCut(cutId);
+
+    const c = document.createElement("canvas");
+    c.width = 220; c.height = 220;
+    const ctx = c.getContext("2d");
+    ctx.fillStyle="#0a0d16"; ctx.fillRect(0,0,c.width,c.height);
+
+    const img = cut.cropCanvas;
+    const iw = img.width, ih = img.height;
+    const s = Math.min(c.width/iw, c.height/ih);
+    const ww = iw*s, hh = ih*s;
+    const x = (c.width-ww)/2, y=(c.height-hh)/2;
+    ctx.drawImage(img, x,y,ww,hh);
+
+    const cap = document.createElement("div");
+    cap.className="cap";
+    cap.textContent = cutId;
+
+    card.appendChild(c);
+    card.appendChild(cap);
+    thumbs.appendChild(card);
+  }
+  updateThumbSelection();
+}
+function updateThumbSelection(){
+  const nodes = thumbs.querySelectorAll(".thumb");
+  nodes.forEach((n,i)=>{
+    const cutId = state.cutOrder[i];
+    n.classList.toggle("selected", cutId === state.selectedCutId);
   });
+}
 
-  btnDownloadPSD.addEventListener('click', async () => {
-    if (!state.flatRGBA || state.selectedCut < 0 || !window.agPsd) return;
-    const ci = state.selectedCut;
+/** =========================
+ *  SELECT CUT
+ *  ========================= */
+let lineDraw = null;
+function selectCut(cutId){
+  state.selectedCutId = cutId;
+  updateThumbSelection();
 
-    // Build two layer PSD (processing resolution)
-    const w = state.procW, h = state.procH;
+  const cut = state.cuts[cutId];
+  currentCutPill.textContent = `선택된 컷: ${cutId}`;
+  lineInfo.textContent = `${cut.cropCanvas.width}×${cut.cropCanvas.height}`;
 
-    // Create Flat canvas
-    const flatC = createCanvas(w,h);
-    const fctx = flatC.getContext('2d');
-    const flatImg = fctx.createImageData(w,h);
-    flatImg.data.set(state.flatRGBA);
-    fctx.putImageData(flatImg, 0,0);
+  cvLine.width = 900; cvLine.height = 600;
+  cvOut.width  = 900; cvOut.height  = 600;
+  cvDbg.width  = 900; cvDbg.height  = 600;
 
-    // Create Line canvas (scaled down from original cut, smoothing off to mimic AA OFF)
-    const lineC = createCanvas(w,h);
-    const lctx = lineC.getContext('2d');
-    lctx.imageSmoothingEnabled = false;
-    lctx.fillStyle = '#fff'; lctx.fillRect(0,0,w,h);
-    const cutCanvas = state.cuts[ci].canvas;
-    lctx.drawImage(cutCanvas, 0,0, cutCanvas.width, cutCanvas.height, 0,0, w,h);
+  const ctxLine = cvLine.getContext("2d");
+  lineDraw = drawContain(ctxLine, cut.cropCanvas, cvLine);
 
-    // Convert canvases to ImageData for ag-psd
-    const lineData = lctx.getImageData(0,0,w,h);
-    const flatData2 = fctx.getImageData(0,0,w,h);
+  cvOut.getContext("2d").clearRect(0,0,cvOut.width,cvOut.height);
+  cvDbg.getContext("2d").clearRect(0,0,cvDbg.width,cvDbg.height);
 
-    const psd = {
-      width: w,
-      height: h,
-      children: [
-        {
-          name: 'Line',
-          canvas: lineData, // ag-psd accepts ImageData as "canvas"
-          opacity: 255,
-          blendMode: 'normal'
-        },
-        {
-          name: 'Flat',
-          canvas: flatData2,
-          opacity: 255,
-          blendMode: 'normal'
-        }
-      ]
+  refreshCutCharChecklist();
+  cutCharHint.textContent = `현재 컷 등장 캐릭터: ${cut.cutChars.length ? cut.cutChars.join(", ") : "(없음)"}`;
+  renderHint.textContent = "렌더를 눌러 자동 밑색을 확인하세요.";
+}
+
+/** =========================
+ *  CUT CHARACTER CHECKLIST
+ *  ========================= */
+function refreshCutCharChecklist(){
+  cutCharChecklist.innerHTML = "";
+  const codes = Object.keys(state.characters);
+  if(!state.selectedCutId){
+    cutCharHint.textContent = "컷을 먼저 선택하세요.";
+    return;
+  }
+  const cut = state.cuts[state.selectedCutId];
+
+  if(codes.length === 0){
+    cutCharChecklist.innerHTML = `<div class="hint">캐릭터를 먼저 추가하세요.</div>`;
+    return;
+  }
+
+  for(const code of codes){
+    const wrap = document.createElement("label");
+    wrap.style.display="flex";
+    wrap.style.gap="10px";
+    wrap.style.alignItems="center";
+    wrap.style.padding="10px";
+    wrap.style.border="1px solid var(--line)";
+    wrap.style.borderRadius="12px";
+    wrap.style.background="rgba(23,28,43,.55)";
+    wrap.style.cursor="pointer";
+
+    const cb = document.createElement("input");
+    cb.type="checkbox";
+    cb.checked = cut.cutChars.includes(code);
+    cb.onchange = ()=>{
+      if(cb.checked && !cut.cutChars.includes(code)) cut.cutChars.push(code);
+      if(!cb.checked) cut.cutChars = cut.cutChars.filter(x=>x!==code);
+      cutCharHint.textContent = `현재 컷 등장 캐릭터: ${cut.cutChars.length ? cut.cutChars.join(", ") : "(없음)"}`;
+      cut.renderCache = null;
     };
 
-    const buffer = window.agPsd.writePsd(psd);
-    const blob = new Blob([buffer], {type:'application/octet-stream'});
-    downloadBlob(blob, `cut_${String(ci+1).padStart(3,'0')}.psd`);
+    const txt = document.createElement("div");
+    txt.innerHTML = `<b>${code}</b><div class="hint">캐릭터 코드</div>`;
+    wrap.appendChild(cb);
+    wrap.appendChild(txt);
+    cutCharChecklist.appendChild(wrap);
+  }
+}
+btnSaveCutChars.addEventListener("click", ()=>{
+  if(!state.selectedCutId) return alert("컷을 먼저 선택하세요.");
+  const cut = state.cuts[state.selectedCutId];
+  cutCharHint.textContent = `저장됨 ✅ 등장 캐릭터: ${cut.cutChars.length ? cut.cutChars.join(", ") : "(없음)"}`;
+  cut.renderCache = null;
+});
+
+/** =========================
+ *  EXPORT JSON
+ *  ========================= */
+function buildPaletteJson(){
+  const out = { version:4, episodeId: state.episodeId, characters:{} };
+  for(const [code, c] of Object.entries(state.characters)){
+    out.characters[code] = { displayName: c.displayName || code, palette: c.palette };
+  }
+  return out;
+}
+function buildEpisodeMetaJson(){
+  const out = { episodeId: state.episodeId, cuts:{} };
+  for(const cutId of state.cutOrder){
+    const c = state.cuts[cutId];
+    out.cuts[cutId] = { y0: c.y0, y1: c.y1, chars: c.cutChars || [] };
+  }
+  return out;
+}
+btnExportPalette.addEventListener("click", ()=>downloadJson(buildPaletteJson(), "palette.json"));
+btnExportMeta.addEventListener("click", ()=>downloadJson(buildEpisodeMetaJson(), "episode.meta.json"));
+
+/** =========================
+ *  RENDER BUTTONS
+ *  ========================= */
+btnRender.addEventListener("click", async ()=>{
+  if(!state.selectedCutId) return alert("컷을 먼저 선택하세요.");
+  const cut = state.cuts[state.selectedCutId];
+  if(cut.cutChars.length === 0) return alert("현재 컷 등장 캐릭터를 체크하세요.");
+
+  setStatus("렌더 중…");
+  const result = await renderCutAuto(state.selectedCutId);
+
+  cvOut.width = 900; cvOut.height = 600;
+  drawContain(cvOut.getContext("2d"), result.outCanvas, cvOut);
+
+  cvDbg.width = 900; cvDbg.height = 600;
+  drawContain(cvDbg.getContext("2d"), result.dbgCanvas, cvDbg);
+
+  renderHint.innerHTML =
+    `렌더 완료 ✅ region ${result.regionCount} / cand ${result.candCount} / fill ${result.filledCount}<br/>`+
+    `faceId: ${result.faceCount} / neckSkin: ${result.neckCount} / armSkin: ${result.armCount}`;
+  setStatus("렌더 OK");
+});
+
+/** =========================
+ *  COLOR DILATION (problem2 white gaps)
+ *  ========================= */
+function dilateColorCanvas(srcCanvas, rad=2){
+  const W = srcCanvas.width, H = srcCanvas.height;
+  const sctx = srcCanvas.getContext("2d");
+  const src = sctx.getImageData(0,0,W,H);
+  const d = src.data;
+
+  const out = new ImageData(W,H);
+  const od = out.data;
+  od.set(d);
+
+  for(let y=0;y<H;y++){
+    for(let x=0;x<W;x++){
+      const i=(y*W+x)*4;
+      if(d[i+3]===0) continue;
+      const r=d[i], g=d[i+1], b=d[i+2], a=d[i+3];
+
+      for(let dy=-rad; dy<=rad; dy++){
+        const yy=y+dy; if(yy<0||yy>=H) continue;
+        for(let dx=-rad; dx<=rad; dx++){
+          const xx=x+dx; if(xx<0||xx>=W) continue;
+          const j=(yy*W+xx)*4;
+          if(od[j+3]===0){
+            od[j]=r; od[j+1]=g; od[j+2]=b; od[j+3]=a;
+          }
+        }
+      }
+    }
+  }
+
+  const c = document.createElement("canvas");
+  c.width=W; c.height=H;
+  c.getContext("2d").putImageData(out,0,0);
+  return c;
+}
+
+/** =========================
+ *  AUTO FLAT (v4: face-neck + arm skin)
+ *  ========================= */
+async function renderCutAuto(cutId){
+  const cut = state.cuts[cutId];
+  if(cut.renderCache) return cut.renderCache;
+
+  const src = cut.cropCanvas;
+  const sw = src.width, sh = src.height;
+
+  const targetW = 520;
+  const s = Math.min(1, targetW / sw);
+  const aw = Math.max(220, Math.floor(sw*s));
+  const ah = Math.max(220, Math.floor(sh*s));
+
+  const a = document.createElement("canvas");
+  a.width = aw; a.height = ah;
+  const actx = a.getContext("2d");
+  actx.drawImage(src, 0, 0, aw, ah);
+
+  const img = actx.getImageData(0,0,aw,ah);
+  const d = img.data;
+
+  // line mask
+  const line = new Uint8Array(aw*ah);
+  for(let i=0;i<aw*ah;i++){
+    const r=d[i*4], g=d[i*4+1], b=d[i*4+2], alpha=d[i*4+3];
+    if(alpha===0){ line[i]=0; continue; }
+    const lum = (r+g+b)/3;
+    line[i] = (lum < 225) ? 1 : 0;
+  }
+
+  // dilate lines for closure
+  const dil = new Uint8Array(aw*ah);
+  const rad = 3;
+  for(let y=0;y<ah;y++){
+    for(let x=0;x<aw;x++){
+      let v = 0;
+      for(let dy=-rad; dy<=rad; dy++){
+        const yy=y+dy; if(yy<0||yy>=ah) continue;
+        for(let dx=-rad; dx<=rad; dx++){
+          const xx=x+dx; if(xx<0||xx>=aw) continue;
+          if(line[yy*aw+xx]){ v=1; break; }
+        }
+        if(v) break;
+      }
+      dil[y*aw+x]=v;
+    }
+  }
+
+  // region labeling on non-line pixels
+  const label = new Int32Array(aw*ah);
+  label.fill(-1);
+
+  const regions = []; // {id, area, cx, cy, touchesBorder, bbox}
+  let rid = 0;
+
+  const qx = new Int32Array(aw*ah);
+  const qy = new Int32Array(aw*ah);
+
+  function pushRegion(seedX, seedY){
+    let qs=0, qe=0;
+    qx[qe]=seedX; qy[qe]=seedY; qe++;
+    label[seedY*aw+seedX]=rid;
+
+    let area=0, sumx=0, sumy=0;
+    let touchesBorder = (seedX===0||seedY===0||seedX===aw-1||seedY===ah-1);
+    let minx=seedX, maxx=seedX, miny=seedY, maxy=seedY;
+
+    while(qs<qe){
+      const x = qx[qs], y = qy[qs]; qs++;
+      area++; sumx+=x; sumy+=y;
+      if(x===0||y===0||x===aw-1||y===ah-1) touchesBorder=true;
+      if(x<minx)minx=x; if(x>maxx)maxx=x;
+      if(y<miny)miny=y; if(y>maxy)maxy=y;
+
+      const n = [[x+1,y],[x-1,y],[x,y+1],[x,y-1]];
+      for(const [nx,ny] of n){
+        if(nx<0||ny<0||nx>=aw||ny>=ah) continue;
+        const idx = ny*aw+nx;
+        if(dil[idx]===1) continue;
+        if(label[idx]!==-1) continue;
+        label[idx]=rid;
+        qx[qe]=nx; qy[qe]=ny; qe++;
+      }
+    }
+
+    regions.push({
+      id: rid,
+      area,
+      cx: sumx/area,
+      cy: sumy/area,
+      touchesBorder,
+      bbox: {minx, miny, maxx, maxy}
+    });
+    rid++;
+  }
+
+  for(let y=0;y<ah;y++){
+    for(let x=0;x<aw;x++){
+      const idx=y*aw+x;
+      if(dil[idx]===1) continue;
+      if(label[idx]!==-1) continue;
+      pushRegion(x,y);
+    }
+  }
+
+  // adjacency graph between regions (for face->neck / top->arms)
+  const adj = new Map(); // id -> Set(id)
+  function link(a,b){
+    if(a===b || a<0 || b<0) return;
+    let sa = adj.get(a); if(!sa){ sa=new Set(); adj.set(a,sa); }
+    let sb = adj.get(b); if(!sb){ sb=new Set(); adj.set(b,sb); }
+    sa.add(b); sb.add(a);
+  }
+  for(let y=0;y<ah;y++){
+    for(let x=0;x<aw;x++){
+      const idx = y*aw+x;
+      const aId = label[idx];
+      if(aId<0) continue;
+      if(x+1<aw){
+        const bId = label[idx+1];
+        if(bId>=0 && bId!==aId) link(aId,bId);
+      }
+      if(y+1<ah){
+        const cId = label[idx+aw];
+        if(cId>=0 && cId!==aId) link(aId,cId);
+      }
+    }
+  }
+
+  // background = ALL border-touching regions
+  const bgSet = new Set();
+  for(const r of regions){
+    if(r.touchesBorder) bgSet.add(r.id);
+  }
+
+  const minArea = Math.max(80, Math.floor((aw*ah) * 0.00025));
+  const cand = regions.filter(r => !bgSet.has(r.id) && r.area >= minArea);
+
+  // group by x using K-means
+  const charCodes = [...cut.cutChars];
+  let K = Math.max(1, Math.min(charCodes.length, 5));
+
+  const xs = cand.map(r=>r.cx);
+  const xSpread = (xs.length? (Math.max(...xs)-Math.min(...xs)) : 0);
+  if(K===2 && xSpread < aw*0.22) K = 1;
+
+  const km = kmeans1D(xs, K);
+  const groups = Array.from({length:K}, ()=>[]);
+  for(let i=0;i<cand.length;i++){
+    groups[km.labels[i]].push(cand[i]);
+  }
+
+  const order = [...Array(K).keys()].sort((a,b)=>km.centers[a]-km.centers[b]);
+  const groupToChar = (gIndex)=> charCodes[Math.min(order.indexOf(gIndex), charCodes.length-1)];
+
+  // group bboxes
+  const groupBBox = groups.map(gs=>{
+    let minx=1e9,miny=1e9,maxx=-1e9,maxy=-1e9;
+    if(gs.length===0){ minx=0;miny=0;maxx=aw-1;maxy=ah-1; }
+    for(const r of gs){
+      minx=Math.min(minx,r.bbox.minx); miny=Math.min(miny,r.bbox.miny);
+      maxx=Math.max(maxx,r.bbox.maxx); maxy=Math.max(maxy,r.bbox.maxy);
+    }
+    return {minx,miny,maxx,maxy};
   });
 
-  // ---------------------------
-  // Init UI
-  // ---------------------------
-  buildLabelsUI();
-  refreshButtons();
-  setStatus('선화 PNG 업로드 후 시작하세요.');
-})();
+  function getColorFor(charCode, part){
+    const ch = state.characters[charCode];
+    const fallback = {
+      bg:"#ffffff",
+      skin:"#f0d2c2",
+      hair:"#1a1410",
+      brow:"#2a2320",
+      eye_iris:"#3a6ea5",
+      eye_white:"#ffffff",
+      mouth:"#c7867a",
+      top:"#b1e0fe",
+      bottom:"#2e78a7"
+    };
+    if(!ch || !ch.palette) return fallback[part] || "#cccccc";
+    const e = ch.palette[part];
+    return (e && e.hex) ? e.hex : (fallback[part] || "#cccccc");
+  }
+
+  /** -------------------------
+   *  v4: FACE → NECK SKIN + TOP → ARM SKIN
+   *  For each group, precompute:
+   *    faceId (best face candidate)
+   *    neckSkinSet (adjacent chain below face)
+   *    topId (best top candidate)
+   *    armSkinSet (adjacent side regions to top)
+   * ------------------------- */
+  const faceIds = new Set();
+  const neckSkinIds = new Set();
+  const topIds = new Set();
+  const armSkinIds = new Set();
+
+  // quick lookup by id
+  const regionById = new Map(regions.map(r=>[r.id, r]));
+  function relMetrics(r, bb){
+    const gh = Math.max(1, bb.maxy - bb.miny);
+    const gw = Math.max(1, bb.maxx - bb.minx);
+    const relY = (r.cy - bb.miny) / gh;
+    const relX = (r.cx - bb.minx) / gw;
+    const relH = (r.bbox.maxy - r.bbox.miny) / gh;
+    const relW = (r.bbox.maxx - r.bbox.minx) / gw;
+    const areaRel = r.area / Math.max(1, (bb.maxx-bb.minx)*(bb.maxy-bb.miny));
+    return {relY, relX, relH, relW, areaRel, gh, gw};
+  }
+
+  for(let gi=0; gi<K; gi++){
+    const code = groupToChar(gi);
+    const bb = groupBBox[gi];
+    const gs = groups[gi];
+    const pal = state.characters[code]?.palette || {};
+
+    const groupSet = new Set(gs.map(r=>r.id));
+    const gw = Math.max(1, bb.maxx-bb.minx);
+    const gh = Math.max(1, bb.maxy-bb.miny);
+
+    // 1) find face candidate
+    let bestFace = null;
+    let bestScore = -1e9;
+    for(const r of gs){
+      const m = relMetrics(r, bb);
+
+      // face band: upper-middle
+      const inBand = (m.relY > 0.16 && m.relY < 0.55);
+      if(!inBand) continue;
+
+      // face size constraints (too small/too big 제외)
+      if(m.areaRel < 0.006 || m.areaRel > 0.15) continue;
+
+      // aspect constraint (너무 긴 것 제외)
+      const asp = (m.relW / Math.max(1e-6, m.relH));
+      if(asp < 0.45 || asp > 2.2) continue;
+
+      // score:
+      // - prefer near center X
+      // - prefer not too wide
+      // - prefer moderate area
+      const centerScore = 1.0 - Math.abs(m.relX - 0.50);
+      const sizeScore = 1.0 - Math.abs(m.areaRel - 0.05); // 0.05 근처 선호
+      const slimPenalty = Math.abs(asp - 1.0);
+
+      let s = 0;
+      s += centerScore * 2.2;
+      s += sizeScore * 1.4;
+      s -= slimPenalty * 0.45;
+
+      // if skin palette exists, boost (to trust skin logic)
+      if(pal.skin) s += 0.35;
+
+      if(s > bestScore){ bestScore=s; bestFace=r; }
+    }
+
+    if(bestFace){
+      faceIds.add(bestFace.id);
+
+      // 2) neck skin: BFS from face into adjacent regions,
+      // only those BELOW face and close in X range
+      const fx0 = bestFace.bbox.minx, fx1 = bestFace.bbox.maxx;
+      const fy1 = bestFace.bbox.maxy;
+      const xPad = Math.floor(gw * 0.10);
+
+      const allowX0 = fx0 - xPad;
+      const allowX1 = fx1 + xPad;
+      const maxNeckY = bestFace.cy + gh*0.38;
+
+      const visited = new Set([bestFace.id]);
+      const q = [bestFace.id];
+
+      while(q.length){
+        const cur = q.shift();
+        const neigh = adj.get(cur);
+        if(!neigh) continue;
+        for(const nid of neigh){
+          if(visited.has(nid)) continue;
+          if(bgSet.has(nid)) continue;
+          if(!groupSet.has(nid)) continue;
+
+          const nr = regionById.get(nid);
+          if(!nr) continue;
+
+          // must be under face-ish and near x-range
+          const under = (nr.cy >= fy1-2);
+          const withinX = (nr.bbox.maxx >= allowX0 && nr.bbox.minx <= allowX1);
+          const notTooLow = (nr.cy <= maxNeckY);
+
+          // exclude huge body area (상의/몸통)
+          const m = relMetrics(nr, bb);
+          const notHuge = (m.areaRel <= 0.22);
+
+          if(under && withinX && notTooLow && notHuge){
+            neckSkinIds.add(nid);
+            visited.add(nid);
+            q.push(nid);
+          }else{
+            visited.add(nid);
+          }
+        }
+      }
+    }
+
+    // 3) find top candidate (largest in torso band)
+    let bestTop = null;
+    let bestTopScore = -1e9;
+    for(const r of gs){
+      const m = relMetrics(r, bb);
+      // torso band
+      if(m.relY < 0.48 || m.relY > 0.90) continue;
+      // big-ish
+      if(m.areaRel < 0.03) continue;
+
+      // score mainly by area, slightly by center
+      const centerScore = 1.0 - Math.abs(m.relX - 0.5);
+      let s = (m.areaRel * 10.0) + centerScore*0.5;
+
+      if(pal.top) s += 0.25;
+
+      if(s>bestTopScore){ bestTopScore=s; bestTop=r; }
+    }
+    if(bestTop){
+      topIds.add(bestTop.id);
+
+      // 4) arm skin: regions adjacent to top that extend sideways beyond top bbox
+      const tb = bestTop.bbox;
+      const torsoH = Math.max(1, tb.maxy - tb.miny);
+      const torsoW = Math.max(1, tb.maxx - tb.minx);
+
+      const nset = adj.get(bestTop.id) || new Set();
+      for(const nid of nset){
+        if(bgSet.has(nid)) continue;
+        if(!groupSet.has(nid)) continue;
+        const nr = regionById.get(nid);
+        if(!nr) continue;
+
+        const m = relMetrics(nr, bb);
+        // must overlap vertically with torso a decent amount
+        const ov = overlap1D(nr.bbox.miny, nr.bbox.maxy, tb.miny, tb.maxy);
+        const ovRatio = ov / Math.max(1, Math.min(nr.bbox.maxy-nr.bbox.miny, torsoH));
+        if(ovRatio < 0.35) continue;
+
+        // must be in mid-lower band (arms)
+        if(m.relY < 0.38 || m.relY > 0.92) continue;
+
+        // must be not huge
+        if(m.areaRel > 0.18) continue;
+
+        // side condition: extend outside torso bbox on left or right
+        const leftSide = (nr.bbox.maxx < tb.minx + torsoW*0.20);
+        const rightSide = (nr.bbox.minx > tb.maxx - torsoW*0.20);
+        const extendsLeft = (nr.bbox.minx < tb.minx - torsoW*0.06);
+        const extendsRight = (nr.bbox.maxx > tb.maxx + torsoW*0.06);
+
+        const isSide = (leftSide && extendsLeft) || (rightSide && extendsRight);
+        if(!isSide) continue;
+
+        armSkinIds.add(nid);
+      }
+    }
+  }
+
+  // classification
+  function classifyPart(region, bb, charCode){
+    // v4 overrides first
+    if(faceIds.has(region.id)) return "skin";
+    if(neckSkinIds.has(region.id)) return "skin";
+    if(armSkinIds.has(region.id)) return "skin";
+
+    // fallback heuristic
+    const relY = (region.cy - bb.miny) / Math.max(1, (bb.maxy - bb.miny));
+    const relH = (region.bbox.maxy - region.bbox.miny) / Math.max(1, (bb.maxy - bb.miny));
+    const relW = (region.bbox.maxx - region.bbox.minx) / Math.max(1, (bb.maxx - bb.minx));
+    const areaRel = region.area / Math.max(1, (bb.maxx-bb.minx)*(bb.maxy-bb.miny));
+
+    const pal = state.characters[charCode]?.palette || {};
+
+    const isEyeish = (relY > 0.18 && relY < 0.45) && (areaRel < 0.030) && (relH < 0.22) && (relW < 0.28);
+    if(isEyeish){
+      if(pal["eye_iris"] && pal["eye_white"]){
+        return (areaRel < 0.010) ? "eye_iris" : "eye_white";
+      }
+      if(pal["eye_iris"]) return "eye_iris";
+      if(pal["eye_white"]) return "eye_white";
+    }
+
+    const isBrowish = (relY > 0.10 && relY < 0.28) && relH < 0.10 && areaRel < 0.020;
+    if(isBrowish && pal["brow"]) return "brow";
+
+    const isMouthish = (relY > 0.45 && relY < 0.68) && areaRel < 0.020 && relH < 0.1212;
+    if(isMouthish && pal["mouth"]) return "mouth";
+
+    // main bands
+    if(relY < 0.22) return "hair";
+    if(relY < 0.56) return "skin";
+    if(relY < 0.82) return "top";
+    return "bottom";
+  }
+
+  // regionId -> meta
+  const regionMeta = new Map();
+  for(let gi=0; gi<K; gi++){
+    const code = groupToChar(gi);
+    for(const r of groups[gi]){
+      const part = classifyPart(r, groupBBox[gi], code);
+      const hex = getColorFor(code, part);
+      regionMeta.set(r.id, {code, part, hex});
+    }
+  }
+
+  // bg fill (white default or palette bg)
+  let bgHex = "#ffffff";
+  for(const code of charCodes){
+    const pal = state.characters[code]?.palette;
+    if(pal?.bg?.hex){ bgHex = pal.bg.hex; break; }
+  }
+
+  // build color at analysis res
+  const color = document.createElement("canvas");
+  color.width = aw; color.height = ah;
+  const cctx = color.getContext("2d");
+  cctx.fillStyle = bgHex;
+  cctx.fillRect(0,0,aw,ah);
+
+  const outImg = cctx.getImageData(0,0,aw,ah);
+  const od = outImg.data;
+
+  const uniqueFilled = new Set();
+  for(let y=0;y<ah;y++){
+    for(let x=0;x<aw;x++){
+      const idx = y*aw+x;
+      const lid = label[idx];
+      if(lid < 0) continue;
+      if(bgSet.has(lid)) continue;
+
+      const meta = regionMeta.get(lid);
+      if(!meta) continue;
+
+      const {r,g,b} = hexToRgb(meta.hex);
+      const o = idx*4;
+      od[o]=r; od[o+1]=g; od[o+2]=b; od[o+3]=255;
+      uniqueFilled.add(lid);
+    }
+  }
+  cctx.putImageData(outImg,0,0);
+
+  // ✅ v4: reduce white gaps around line by dilating colors slightly
+  const color2 = dilateColorCanvas(color, 2);
+
+  // overlay lineart
+  const overlay = document.createElement("canvas");
+  overlay.width = aw; overlay.height = ah;
+  const octx = overlay.getContext("2d");
+  octx.drawImage(a,0,0);
+  const li = octx.getImageData(0,0,aw,ah);
+  const ld = li.data;
+  for(let i=0;i<aw*ah;i++){
+    const lum = (ld[i*4]+ld[i*4+1]+ld[i*4+2])/3;
+    if(lum < 205){
+      ld[i*4]=0; ld[i*4+1]=0; ld[i*4+2]=0; ld[i*4+3]=255;
+    }else{
+      ld[i*4+3]=0;
+    }
+  }
+  octx.putImageData(li,0,0);
+
+  // compose final at original res (bg fixed)
+  const out = document.createElement("canvas");
+  out.width = sw; out.height = sh;
+  const outCtx = out.getContext("2d");
+
+  outCtx.fillStyle = bgHex;
+  outCtx.fillRect(0,0,sw,sh);
+
+  outCtx.imageSmoothingEnabled = false;
+  outCtx.drawImage(color2, 0,0, sw,sh);
+  outCtx.imageSmoothingEnabled = true;
+  outCtx.drawImage(overlay, 0,0, sw,sh);
+
+  // debug canvas at analysis res
+  const dbg = document.createElement("canvas");
+  dbg.width = aw; dbg.height = ah;
+  const dbgCtx = dbg.getContext("2d");
+  dbgCtx.fillStyle="#ffffff"; dbgCtx.fillRect(0,0,aw,ah);
+  dbgCtx.drawImage(color2,0,0);
+
+  // draw group boxes
+  for(let gi=0; gi<K; gi++){
+    const bb = groupBBox[gi];
+    const col = ["#79a7ff","#35d07f","#ffd38a","#ff5a6a","#c48bff"][gi%5];
+    dbgCtx.strokeStyle = col;
+    dbgCtx.lineWidth = 2;
+    dbgCtx.strokeRect(bb.minx, bb.miny, bb.maxx-bb.minx, bb.maxy-bb.miny);
+    dbgCtx.fillStyle = col;
+    dbgCtx.font = "12px monospace";
+    dbgCtx.fillText(groupToChar(gi), bb.minx+4, bb.miny+14);
+  }
+
+  // highlight face/neck/arm ids (simple overlay rectangles)
+  function markIds(idSet, stroke){
+    dbgCtx.strokeStyle = stroke;
+    dbgCtx.lineWidth = 2;
+    for(const id of idSet){
+      const r = regionById.get(id);
+      if(!r) continue;
+      dbgCtx.strokeRect(r.bbox.minx, r.bbox.miny, r.bbox.maxx-r.bbox.minx, r.bbox.maxy-r.bbox.miny);
+    }
+  }
+  markIds(faceIds, "#00d4ff");     // face = cyan
+  markIds(neckSkinIds, "#00ff7a"); // neck skin = green
+  markIds(armSkinIds, "#ff9f00");  // arm skin = orange
+
+  const cache = {
+    outCanvas: out,
+    dbgCanvas: dbg,
+    regionCount: regions.length,
+    candCount: cand.length,
+    filledCount: uniqueFilled.size,
+    faceCount: faceIds.size,
+    neckCount: neckSkinIds.size,
+    armCount: armSkinIds.size
+  };
+  cut.renderCache = cache;
+  return cache;
+}
+
+/** =========================
+ *  DOWNLOAD
+ *  ========================= */
+btnDownloadCut.addEventListener("click", async ()=>{
+  if(!state.selectedCutId) return alert("컷을 먼저 선택하세요.");
+  const blob = await renderCutToPNGBlob(state.selectedCutId);
+  saveAs(blob, `${state.selectedCutId}_colored.png`);
+});
+btnDownloadAll.addEventListener("click", async ()=>{
+  if(state.cutOrder.length === 0) return alert("컷이 없습니다. 먼저 자동 컷 분할을 하세요.");
+  setStatus("ZIP 생성 중…");
+  const zip = new JSZip();
+  for(const cutId of state.cutOrder){
+    const blob = await renderCutToPNGBlob(cutId);
+    zip.file(`${cutId}_colored.png`, blob);
+  }
+  zip.file(`palette.json`, JSON.stringify(buildPaletteJson(), null, 2));
+  zip.file(`episode.meta.json`, JSON.stringify(buildEpisodeMetaJson(), null, 2));
+  const out = await zip.generateAsync({type:"blob"});
+  saveAs(out, `${state.episodeId}_colored.zip`);
+  setStatus("ZIP OK");
+});
+async function renderCutToPNGBlob(cutId){
+  const res = await renderCutAuto(cutId);
+  return new Promise(resolve => res.outCanvas.toBlob(resolve, "image/png"));
+}
+
+/** =========================
+ *  INIT
+ *  ========================= */
+renderPartsUI();
+refreshCharSelect();
+setStatus("대기");
 </script>
 </body>
 </html>
